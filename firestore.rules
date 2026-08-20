@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowlisted() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'officialtermresult@gmail.com'
+        ];
+    }
+
+    match /contacts/{id} {
+      allow read, write: if allowlisted();
+    }
+    match /campaigns/{id} {
+      allow read, write: if allowlisted();
+    }
+    match /messages/{id} {
+      allow read, write: if allowlisted();
+    }
+    match /suppressions/{id} {
+      allow read, write: if allowlisted();
+    }
+    match /settings/{id} {
+      allow read, write: if allowlisted();
+    }
+  }
+}

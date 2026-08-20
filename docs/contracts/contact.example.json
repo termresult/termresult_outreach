@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "id": "ChIJdbgrCsIKThAR7UapwJLbgbE",
+  "source_place_id": "ChIJdbgrCsIKThAR7UapwJLbgbE",
+  "name": "The Regent Secondary School, Abuja",
+  "area": "Mabushi",
+  "address": "Plot 858, Mabushi District, Abuja",
+  "phone_e164": "+2348012345678",
+  "phone_raw": "+234 801 234 5678",
+  "email": "info@example.edu.ng",
+  "emails": ["info@example.edu.ng"],
+  "website": "https://example.edu.ng",
+  "owner_name": null,
+  "channels": { "whatsapp": true, "sms": true, "email": true },
+  "source": "maps",
+  "imported_at": "2026-08-20T07:00:00.000Z",
+  "updated_at": "2026-08-20T07:00:00.000Z"
+}
