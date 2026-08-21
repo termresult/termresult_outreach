@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { emptyContact } from "../types/contact.ts";
-import { adminDb } from "../lib/firebase/admin.ts";
+import { emptyContact } from "../types/contact";
+import { upsertContacts } from "../lib/store/contacts";
 
 function loadEnvLocal() {
   const text = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
@@ -26,5 +26,5 @@ contact.area = "Maitama";
 contact.imported_at = new Date().toISOString();
 contact.updated_at = contact.imported_at;
 
-await adminDb().collection("contacts").doc(id).set(contact);
+upsertContacts([contact]);
 console.log(`wrote contacts/${id}`);

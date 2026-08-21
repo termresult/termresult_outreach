@@ -1,4 +1,4 @@
-import type { CampaignChannel } from "./campaign.ts";
+import type { CampaignChannel } from "./campaign";
 
 export type MessageStatus = "queued" | "sending" | "sent" | "failed" | "skipped";
 
