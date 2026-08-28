@@ -13,11 +13,13 @@ import {
   LogOut,
   Menu,
   X,
+  NotebookPen,
 } from "lucide-react";
 import { BRAND, hexToRgba } from "@/lib/color";
 
 const NAV = [
   { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/proprietors", label: "Proprietors", icon: NotebookPen },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
@@ -35,7 +37,7 @@ function NavLinks({
   return (
     <nav className="space-y-1">
       {NAV.map((item) => {
-        const active = pathname === item.href;
+        const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         const Icon = item.icon;
         return (
           <Link

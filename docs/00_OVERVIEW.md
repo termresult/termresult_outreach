@@ -77,6 +77,7 @@ Scraping is finished. The job now is **reach**, not **find**.
 - Gmail API send with configurable delay (default 3 minutes) and daily cap (default 400)
 - Per-message status, skip if no usable address for that channel, skip suppressions
 - Operator screens: Contacts, Lists, Campaigns, Send log
+- Proprietors is a live conversation list (who already talked to a school), not a send channel
 
 **Foundation for later (designed in, not fully built):**
 

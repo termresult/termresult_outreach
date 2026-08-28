@@ -8,6 +8,8 @@ const outfit = Outfit({
   display: "swap",
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "Outreach — TermResult",

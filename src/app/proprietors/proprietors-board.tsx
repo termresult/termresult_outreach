@@ -1,0 +1,619 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { NotebookPen, Plus, X } from "lucide-react";
+import { EmptyState } from "@/components/ui/ds";
+import { FormSelect } from "@/components/ui/form-select";
+import { BRAND, hexToRgba } from "@/lib/color";
+import {
+  FOLLOW_UP_LABELS,
+  FOLLOW_UP_STATUSES,
+  OPERATOR_NAMES,
+  SOFTWARE_LABELS,
+  alreadyTalked,
+  isLockActive,
+  type FollowUpStatus,
+  type Proprietor,
+  type ProprietorInput,
+  type SchoolSoftware,
+} from "@/types/proprietor";
+
+const NAME_KEY = "outreach_operator_name";
+
+type Filter = "all" | "not_yet" | "talked" | "talking";
+
+type FormState = {
+  school_name: string;
+  proprietor_name: string;
+  email: string;
+  phone: string;
+  notes: string;
+  status: FollowUpStatus;
+  contact_person: string;
+  student_count: string;
+  average_fees: string;
+  software: SchoolSoftware;
+  software_other: string;
+};
+
+const emptyForm = (): FormState => ({
+  school_name: "",
+  proprietor_name: "",
+  email: "",
+  phone: "",
+  notes: "",
+  status: "not_yet_contacted",
+  contact_person: "",
+  student_count: "",
+  average_fees: "",
+  software: "none",
+  software_other: "",
+});
+
+function fromRow(row: Proprietor): FormState {
+  return {
+    school_name: row.school_name,
+    proprietor_name: row.proprietor_name ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
+    notes: row.notes ?? "",
+    status: row.status,
+    contact_person: row.contact_person ?? "",
+    student_count: row.student_count != null ? String(row.student_count) : "",
+    average_fees: row.average_fees != null ? String(row.average_fees) : "",
+    software: row.software,
+    software_other: row.software_other ?? "",
+  };
+}
+
+function toInput(form: FormState): ProprietorInput {
+  return {
+    school_name: form.school_name,
+    proprietor_name: form.proprietor_name,
+    email: form.email,
+    phone: form.phone,
+    notes: form.notes,
+    status: form.status,
+    contact_person: form.contact_person,
+    student_count: form.student_count ? Number(form.student_count) : null,
+    average_fees: form.average_fees ? Number(form.average_fees) : null,
+    software: form.software,
+    software_other: form.software_other,
+  };
+}
+
+function statusTone(status: FollowUpStatus): { bg: string; text: string } {
+  switch (status) {
+    case "in_conversation":
+      return { bg: "#FFFBEB", text: "#B45309" };
+    case "email_sent":
+      return { bg: hexToRgba(BRAND, 0.08), text: BRAND };
+    case "call_scheduled":
+      return { bg: "#F5F3FF", text: "#6D28D9" };
+    case "closed_not_interested":
+      return { bg: "#FFF1F2", text: "#BE123C" };
+    default:
+      return { bg: "#F8FAFC", text: "#475569" };
+  }
+}
+
+function naira(value: number | null): string {
+  if (value == null) return "—";
+  return `₦${value.toLocaleString("en-NG")}`;
+}
+
+function softwareLine(row: Proprietor): string {
+  if (row.software === "other") return row.software_other || "Other software";
+  if (row.software === "b4") return "Uses B4";
+  return "No software yet";
+}
+
+function when(iso: string): string {
+  return iso.replace("T", " ").slice(0, 16);
+}
+
+export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
+  const [rows, setRows] = useState(initial);
+  const [operator, setOperator] = useState("");
+  const [otherName, setOtherName] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Proprietor | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const displayName = operator === "Other" ? otherName.trim() : operator;
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(NAME_KEY) ?? "";
+    if ((OPERATOR_NAMES as readonly string[]).includes(saved)) {
+      setOperator(saved);
+      return;
+    }
+    if (saved) {
+      setOperator("Other");
+      setOtherName(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!displayName) return;
+    window.localStorage.setItem(NAME_KEY, displayName);
+  }, [displayName]);
+
+  const refresh = useCallback(async () => {
+    const response = await fetch("/api/proprietors");
+    if (!response.ok) return;
+    const data = (await response.json()) as { proprietors: Proprietor[] };
+    setRows(data.proprietors);
+    setEditing((current) => current ? data.proprietors.find((row) => row.id === current.id) ?? current : current);
+  }, []);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      void refresh();
+    }, 2000);
+    return () => window.clearInterval(tick);
+  }, [refresh]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (filter === "not_yet" && row.status !== "not_yet_contacted") return false;
+      if (filter === "talked" && !alreadyTalked(row.status)) return false;
+      if (filter === "talking" && !isLockActive(row)) return false;
+      if (!q) return true;
+      return [row.school_name, row.proprietor_name, row.phone, row.email, row.contact_person]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q));
+    });
+  }, [rows, query, filter]);
+
+  function needName(): boolean {
+    if (displayName) return false;
+    setError("Pick your name first.");
+    return true;
+  }
+
+  async function openNew() {
+    setEditing(null);
+    setForm(emptyForm());
+    setNotice(null);
+    setError(null);
+    setOpen(true);
+  }
+
+  async function openRow(row: Proprietor) {
+    if (needName()) return;
+    setError(null);
+    setNotice(null);
+    setEditing(row);
+    setForm(fromRow(row));
+    setOpen(true);
+    const response = await fetch(`/api/proprietors/${row.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "lock", operator_name: displayName }),
+    });
+    if (!response.ok) return;
+    const data = (await response.json()) as { proprietor: Proprietor };
+    setRows((current) => current.map((item) => (item.id === data.proprietor.id ? data.proprietor : item)));
+    setEditing(data.proprietor);
+    setForm(fromRow(data.proprietor));
+    if (data.proprietor.talking_by && data.proprietor.talking_by !== displayName && isLockActive(data.proprietor)) {
+      setNotice(`${data.proprietor.talking_by} is talking to this school.`);
+    }
+  }
+
+  async function save() {
+    if (needName()) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (editing) {
+        const response = await fetch(`/api/proprietors/${editing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...toInput(form), operator_name: displayName }),
+        });
+        const data = (await response.json()) as { proprietor?: Proprietor; error?: string };
+        if (!response.ok || !data.proprietor) {
+          setError(data.error ?? "Could not save.");
+          return;
+        }
+        setRows((current) =>
+          current
+            .map((item) => (item.id === data.proprietor!.id ? data.proprietor! : item))
+            .sort((a, b) => a.school_name.localeCompare(b.school_name)),
+        );
+        setOpen(false);
+        return;
+      }
+
+      const response = await fetch("/api/proprietors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...toInput(form), operator_name: displayName }),
+      });
+      const data = (await response.json()) as {
+        proprietor?: Proprietor;
+        created?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !data.proprietor) {
+        setError(data.error ?? "Could not save.");
+        return;
+      }
+      if (!data.created) {
+        setNotice("That school is already on the list.");
+        setEditing(data.proprietor);
+        setForm(fromRow(data.proprietor));
+        setRows((current) => {
+          if (current.some((item) => item.id === data.proprietor!.id)) return current;
+          return [...current, data.proprietor!].sort((a, b) => a.school_name.localeCompare(b.school_name));
+        });
+        return;
+      }
+      setRows((current) =>
+        [...current, data.proprietor!].sort((a, b) => a.school_name.localeCompare(b.school_name)),
+      );
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const filters: { id: Filter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "not_yet", label: "Not yet contacted" },
+    { id: "talked", label: "Already talked" },
+    { id: "talking", label: "In conversation" },
+  ];
+
+  return (
+    <div className="mt-6">
+      <div className="sticky top-14 z-20 -mx-4 space-y-3 border-b border-slate-100 bg-slate-50/95 px-4 py-3 backdrop-blur-sm md:top-0 md:mx-0 md:rounded-xl md:border md:bg-white md:px-5 md:shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="block flex-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your name</span>
+            <FormSelect
+              value={operator}
+              onChange={(event) => setOperator(event.target.value)}
+              className="mt-1"
+            >
+              <option value="">Who are you?</option>
+              {OPERATOR_NAMES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              <option value="Other">Other</option>
+            </FormSelect>
+          </label>
+          {operator === "Other" ? (
+            <label className="block flex-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type it</span>
+              <input
+                value={otherName}
+                onChange={(event) => setOtherName(event.target.value)}
+                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+                placeholder="Your name"
+              />
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void openNew()}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
+            style={{ backgroundColor: BRAND }}
+          >
+            <Plus className="h-4 w-4" />
+            Add school
+          </button>
+        </div>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search school, proprietor, phone"
+          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {filters.map((item) => {
+            const active = filter === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setFilter(item.id)}
+                className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={
+                  active
+                    ? { backgroundColor: hexToRgba(BRAND, 0.08), color: BRAND }
+                    : { backgroundColor: "#fff", color: "#475569", border: "1px solid #e2e8f0" }
+                }
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm text-slate-500">
+        Showing {visible.length} of {rows.length} schools.
+      </p>
+
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<NotebookPen className="h-4 w-4" />}
+          title="No conversations yet"
+          description="Add the first school after you talk to them."
+        />
+      ) : visible.length === 0 ? (
+        <p className="mt-8 text-sm text-slate-500">Nothing matches this filter.</p>
+      ) : (
+        <>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
+            {visible.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => void openRow(row)}
+                className="rounded-xl border bg-white p-4 text-left shadow-sm"
+                style={{
+                  borderColor: alreadyTalked(row.status) ? hexToRgba(BRAND, 0.25) : "#f1f5f9",
+                  backgroundColor: alreadyTalked(row.status) ? hexToRgba(BRAND, 0.03) : "#fff",
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{row.school_name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{row.proprietor_name || "No proprietor name"}</p>
+                  </div>
+                  <StatusBadge status={row.status} />
+                </div>
+                <p className="mt-3 text-sm text-slate-600">{row.phone || "No phone"}</p>
+                <p className="text-sm text-slate-600">
+                  {row.student_count != null ? `${row.student_count} students` : "Student count unknown"}
+                  {" · "}
+                  {softwareLine(row)}
+                </p>
+                <TalkLine row={row} />
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 hidden overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm md:block">
+            <table className="w-full min-w-[860px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60">
+                  {["School", "Proprietor", "Status", "Students", "Fees", "Software", "Last talk"].map((label) => (
+                    <th
+                      key={label}
+                      className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {visible.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer hover:bg-slate-50/50"
+                    onClick={() => void openRow(row)}
+                    style={
+                      alreadyTalked(row.status)
+                        ? { backgroundColor: hexToRgba(BRAND, 0.03) }
+                        : undefined
+                    }
+                  >
+                    <td className="px-4 py-3 font-medium text-slate-900">{row.school_name}</td>
+                    <td className="px-4 py-3 text-slate-600">{row.proprietor_name || "—"}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{row.student_count ?? "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{naira(row.average_fees)}</td>
+                    <td className="px-4 py-3 text-slate-600">{softwareLine(row)}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {row.updated_by} · {when(row.updated_at)}
+                      {isLockActive(row) ? (
+                        <span className="mt-1 block text-xs font-semibold text-amber-700">
+                          {row.talking_by} is talking
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {open ? (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-slate-900/20"
+            onClick={() => setOpen(false)}
+          />
+          <aside className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)]">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {editing ? "Edit school" : "Add school"}
+                </p>
+                <p className="text-lg font-bold text-slate-900">
+                  {editing?.school_name || "New conversation"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+              {notice ? <p className="text-sm font-semibold text-amber-700">{notice}</p> : null}
+              {error ? <p className="text-sm font-semibold text-rose-700">{error}</p> : null}
+              <Field label="School name" value={form.school_name} onChange={(school_name) => setForm({ ...form, school_name })} />
+              <Field label="Proprietor name" value={form.proprietor_name} onChange={(proprietor_name) => setForm({ ...form, proprietor_name })} />
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contact person</span>
+                <FormSelect
+                  className="mt-1"
+                  value={form.contact_person}
+                  onChange={(event) => setForm({ ...form, contact_person: event.target.value })}
+                >
+                  <option value="">Who talked to them?</option>
+                  {OPERATOR_NAMES.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </FormSelect>
+              </label>
+              <Field label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} type="email" />
+              <Field label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Follow-up status</span>
+                <FormSelect
+                  className="mt-1"
+                  value={form.status}
+                  onChange={(event) => setForm({ ...form, status: event.target.value as FollowUpStatus })}
+                >
+                  {FOLLOW_UP_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {FOLLOW_UP_LABELS[status]}
+                    </option>
+                  ))}
+                </FormSelect>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label="Number of students"
+                  value={form.student_count}
+                  onChange={(student_count) => setForm({ ...form, student_count })}
+                  type="number"
+                />
+                <Field
+                  label="Average school fees"
+                  value={form.average_fees}
+                  onChange={(average_fees) => setForm({ ...form, average_fees })}
+                  type="number"
+                />
+              </div>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  School software
+                </span>
+                <FormSelect
+                  className="mt-1"
+                  value={form.software}
+                  onChange={(event) => setForm({ ...form, software: event.target.value as SchoolSoftware })}
+                >
+                  {Object.entries(SOFTWARE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </FormSelect>
+              </label>
+              {form.software === "other" ? (
+                <Field
+                  label="Which software"
+                  value={form.software_other}
+                  onChange={(software_other) => setForm({ ...form, software_other })}
+                />
+              ) : null}
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Notes / interest level
+                </span>
+                <textarea
+                  value={form.notes}
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                  rows={4}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900"
+                />
+              </label>
+            </div>
+            <div className="border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void save()}
+                className="h-11 w-full rounded-full text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                style={{ backgroundColor: BRAND }}
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: FollowUpStatus }) {
+  const tone = statusTone(status);
+  return (
+    <span
+      className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      style={{ backgroundColor: tone.bg, color: tone.text }}
+    >
+      {FOLLOW_UP_LABELS[status]}
+    </span>
+  );
+}
+
+function TalkLine({ row }: { row: Proprietor }) {
+  if (isLockActive(row)) {
+    return (
+      <p className="mt-2 text-xs font-semibold text-amber-700">{row.talking_by} is talking to this school</p>
+    );
+  }
+  if (alreadyTalked(row.status)) {
+    return (
+      <p className="mt-2 text-xs text-slate-500">
+        Last talked: {row.updated_by} · {when(row.updated_at)}
+      </p>
+    );
+  }
+  return <p className="mt-2 text-xs text-slate-500">Nobody has talked yet</p>;
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
+      />
+    </label>
+  );
+}

@@ -23,5 +23,8 @@ service cloud.firestore {
     match /settings/{id} {
       allow read, write: if allowlisted();
     }
+    match /proprietors/{id} {
+      allow read, write: if allowlisted();
+    }
   }
 }
