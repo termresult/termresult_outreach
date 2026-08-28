@@ -115,7 +115,8 @@ function when(iso: string): string {
 export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
   const [rows, setRows] = useState(initial);
   const [operator, setOperator] = useState("");
-  const [otherName, setOtherName] = useState("");
+  const [draftName, setDraftName] = useState("");
+  const [editingName, setEditingName] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState(false);
@@ -124,25 +125,27 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const displayName = operator === "Other" ? otherName.trim() : operator;
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(NAME_KEY) ?? "";
-    if ((OPERATOR_NAMES as readonly string[]).includes(saved)) {
-      setOperator(saved);
-      return;
-    }
-    if (saved) {
-      setOperator("Other");
-      setOtherName(saved);
-    }
+    const known = (OPERATOR_NAMES as readonly string[]).includes(saved) ? saved : "";
+    setOperator(known);
+    setDraftName(known);
+    setEditingName(!known);
+    setReady(true);
   }, []);
 
-  useEffect(() => {
-    if (!displayName) return;
-    window.localStorage.setItem(NAME_KEY, displayName);
-  }, [displayName]);
+  function saveName() {
+    if (!(OPERATOR_NAMES as readonly string[]).includes(draftName)) {
+      setError("Pick your name, then save.");
+      return;
+    }
+    window.localStorage.setItem(NAME_KEY, draftName);
+    setOperator(draftName);
+    setEditingName(false);
+    setError(null);
+  }
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/proprietors");
@@ -173,12 +176,14 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
   }, [rows, query, filter]);
 
   function needName(): boolean {
-    if (displayName) return false;
-    setError("Pick your name first.");
+    if (operator) return false;
+    setError("Save who you are first.");
+    setEditingName(true);
     return true;
   }
 
   async function openNew() {
+    if (needName()) return;
     setEditing(null);
     setForm(emptyForm());
     setNotice(null);
@@ -186,26 +191,13 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
     setOpen(true);
   }
 
-  async function openRow(row: Proprietor) {
+  function openRow(row: Proprietor) {
     if (needName()) return;
     setError(null);
     setNotice(null);
     setEditing(row);
     setForm(fromRow(row));
     setOpen(true);
-    const response = await fetch(`/api/proprietors/${row.id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "lock", operator_name: displayName }),
-    });
-    if (!response.ok) return;
-    const data = (await response.json()) as { proprietor: Proprietor };
-    setRows((current) => current.map((item) => (item.id === data.proprietor.id ? data.proprietor : item)));
-    setEditing(data.proprietor);
-    setForm(fromRow(data.proprietor));
-    if (data.proprietor.talking_by && data.proprietor.talking_by !== displayName && isLockActive(data.proprietor)) {
-      setNotice(`${data.proprietor.talking_by} is talking to this school.`);
-    }
   }
 
   async function save() {
@@ -213,12 +205,13 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
     setBusy(true);
     setError(null);
     setNotice(null);
+    const payload = { ...toInput({ ...form, contact_person: operator }), operator_name: operator };
     try {
       if (editing) {
         const response = await fetch(`/api/proprietors/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...toInput(form), operator_name: displayName }),
+          body: JSON.stringify(payload),
         });
         const data = (await response.json()) as { proprietor?: Proprietor; error?: string };
         if (!response.ok || !data.proprietor) {
@@ -237,7 +230,7 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
       const response = await fetch("/api/proprietors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...toInput(form), operator_name: displayName }),
+        body: JSON.stringify(payload),
       });
       const data = (await response.json()) as {
         proprietor?: Proprietor;
@@ -277,44 +270,60 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
   return (
     <div className="mt-6">
       <div className="sticky top-14 z-20 -mx-4 space-y-3 border-b border-slate-100 bg-slate-50/95 px-4 py-3 backdrop-blur-sm md:top-0 md:mx-0 md:rounded-xl md:border md:bg-white md:px-5 md:shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="block flex-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your name</span>
-            <FormSelect
-              value={operator}
-              onChange={(event) => setOperator(event.target.value)}
-              className="mt-1"
+        {!ready ? null : !operator || editingName ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-bold text-slate-900">Who are you?</p>
+            <p className="mt-1 text-sm text-slate-500">Save this once. We only write your name when you update a school.</p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <FormSelect
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                className="flex-1"
+              >
+                <option value="">Pick your name</option>
+                {OPERATOR_NAMES.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </FormSelect>
+              <button
+                type="button"
+                onClick={saveName}
+                className="h-10 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
+                style={{ backgroundColor: BRAND }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              You are <span className="font-bold text-slate-900">{operator}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftName(operator);
+                  setEditingName(true);
+                }}
+                className="ml-2 text-sm font-semibold"
+                style={{ color: BRAND }}
+              >
+                Change
+              </button>
+            </p>
+            <button
+              type="button"
+              onClick={() => void openNew()}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
+              style={{ backgroundColor: BRAND }}
             >
-              <option value="">Who are you?</option>
-              {OPERATOR_NAMES.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-              <option value="Other">Other</option>
-            </FormSelect>
-          </label>
-          {operator === "Other" ? (
-            <label className="block flex-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type it</span>
-              <input
-                value={otherName}
-                onChange={(event) => setOtherName(event.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900"
-                placeholder="Your name"
-              />
-            </label>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void openNew()}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
-            style={{ backgroundColor: BRAND }}
-          >
-            <Plus className="h-4 w-4" />
-            Add school
-          </button>
-        </div>
+              <Plus className="h-4 w-4" />
+              Add school
+            </button>
+          </div>
+        )}
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -468,21 +477,15 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
               {error ? <p className="text-sm font-semibold text-rose-700">{error}</p> : null}
               <Field label="School name" value={form.school_name} onChange={(school_name) => setForm({ ...form, school_name })} />
               <Field label="Proprietor name" value={form.proprietor_name} onChange={(proprietor_name) => setForm({ ...form, proprietor_name })} />
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contact person</span>
-                <FormSelect
-                  className="mt-1"
-                  value={form.contact_person}
-                  onChange={(event) => setForm({ ...form, contact_person: event.target.value })}
-                >
-                  <option value="">Who talked to them?</option>
-                  {OPERATOR_NAMES.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </FormSelect>
-              </label>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contact person</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {form.contact_person || "Not set yet"}
+                </p>
+                {!form.contact_person ? (
+                  <p className="mt-1 text-xs text-slate-500">Saves as {operator} only when you update this school.</p>
+                ) : null}
+              </div>
               <Field label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} type="email" />
               <Field label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
               <label className="block">

@@ -49,6 +49,7 @@ export type Proprietor = {
   updated_by: string;
   talking_by: string | null;
   talking_at: string | null;
+  seed_sn: number | null;
 };
 
 export type ProprietorInput = {

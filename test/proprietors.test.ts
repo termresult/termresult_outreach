@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { schoolKey } from "@/lib/proprietors/school-key";
+import { REGISTRATION_ROWS } from "@/lib/proprietors/registration-list";
 import {
+  clearUnsavedTalkState,
   createProprietor,
+  getProprietor,
   lockProprietor,
   updateProprietor,
 } from "@/lib/store/proprietors";
@@ -28,9 +31,20 @@ function sample(over: Partial<Proprietor> = {}): Proprietor {
     updated_by: "Amina",
     talking_by: "Amina",
     talking_at: new Date().toISOString(),
+    seed_sn: null,
     ...over,
   };
 }
+
+describe("registration seed", () => {
+  it("has all 104 registration lines", () => {
+    expect(REGISTRATION_ROWS).toHaveLength(104);
+    expect(REGISTRATION_ROWS.map((row) => row.sn)).toEqual(
+      Array.from({ length: 104 }, (_, i) => i + 1),
+    );
+    expect(REGISTRATION_ROWS.filter((row) => schoolKey(row.school_name) === "dafcom private school")).toHaveLength(3);
+  });
+});
 
 describe("schoolKey", () => {
   it("trims, lowercases, and collapses spaces", () => {
@@ -58,6 +72,12 @@ describe("talking lock", () => {
 describe("proprietor store", () => {
   afterEach(() => {
     resetMemoryStore();
+  });
+
+  it("does not assign a contact person on create", async () => {
+    const first = await createProprietor({ school_name: "Seeded Academy", contact_person: null }, "Registration list");
+    expect(first.proprietor.contact_person).toBeNull();
+    expect(first.proprietor.status).toBe("not_yet_contacted");
   });
 
   it("creates one row and treats the same school name as a duplicate", async () => {
@@ -94,6 +114,17 @@ describe("proprietor store", () => {
     expect(saved.student_count).toBe(200);
     expect(saved.average_fees).toBe(85000);
     expect(saved.software).toBe("b4");
+  });
+
+  it("clears click-only talk state when nobody has been saved as contact person", async () => {
+    const created = await createProprietor({ school_name: "LEA Wuse II" }, "Registration list");
+    await lockProprietor(created.proprietor.id, "Possible");
+    const cleared = await clearUnsavedTalkState();
+    expect(cleared).toBe(1);
+    const row = await getProprietor(created.proprietor.id);
+    expect(row?.contact_person).toBeNull();
+    expect(row?.status).toBe("not_yet_contacted");
+    expect(row?.talking_by).toBeNull();
   });
 
   it("does not steal an active lock from someone else", async () => {

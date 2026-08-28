@@ -157,6 +157,7 @@ export async function createProprietor(
       updated_by: name,
       talking_by: null,
       talking_at: null,
+      seed_sn: null,
     },
     { ...input, school_name },
   );
@@ -217,4 +218,81 @@ export async function lockProprietor(id: string, actor: string): Promise<Proprie
 
   await persist(proprietor);
   return proprietor;
+}
+
+export async function upsertSeededProprietor(
+  sn: number,
+  input: ProprietorInput,
+): Promise<{ proprietor: Proprietor; created: boolean }> {
+  const id = `reg-${sn}`;
+  const existing = await getProprietor(id);
+  if (existing?.contact_person || (existing && existing.status !== "not_yet_contacted")) {
+    return { proprietor: existing, created: false };
+  }
+
+  const now = new Date().toISOString();
+  const school_name = input.school_name.trim();
+  const base: Proprietor = existing ?? {
+    id,
+    school_name,
+    school_key: schoolKey(school_name),
+    proprietor_name: null,
+    email: null,
+    phone: null,
+    notes: null,
+    status: "not_yet_contacted",
+    contact_person: null,
+    student_count: null,
+    average_fees: null,
+    software: "none",
+    software_other: null,
+    created_at: now,
+    updated_at: now,
+    updated_by: "Registration list",
+    talking_by: null,
+    talking_at: null,
+    seed_sn: sn,
+  };
+
+  const proprietor = applyInput(
+    { ...base, seed_sn: sn, contact_person: existing?.contact_person ?? null },
+    { ...input, school_name, contact_person: existing?.contact_person ?? null },
+  );
+  await persist({ ...proprietor, seed_sn: sn, contact_person: null, status: existing?.status ?? "not_yet_contacted" });
+  return { proprietor: { ...proprietor, seed_sn: sn, contact_person: null }, created: !existing };
+}
+
+export async function deleteCollapsedRegistrationRows(): Promise<number> {
+  const rows = await listProprietors();
+  let removed = 0;
+  for (const row of rows) {
+    if (row.id.startsWith("reg-")) continue;
+    if (row.updated_by !== "Registration list") continue;
+    if (row.contact_person || row.status !== "not_yet_contacted") continue;
+    if (useMemoryStore()) {
+      delete memoryStore().proprietors[row.id];
+    } else {
+      await adminDb().collection("proprietors").doc(row.id).delete();
+    }
+    removed += 1;
+  }
+  return removed;
+}
+
+export async function clearUnsavedTalkState(): Promise<number> {
+  const rows = await listProprietors();
+  let cleared = 0;
+  for (const row of rows) {
+    if (row.contact_person) continue;
+    const dirty = Boolean(row.talking_by || row.talking_at || row.status === "in_conversation");
+    if (!dirty) continue;
+    await persist({
+      ...row,
+      status: row.status === "in_conversation" ? "not_yet_contacted" : row.status,
+      talking_by: null,
+      talking_at: null,
+    });
+    cleared += 1;
+  }
+  return cleared;
 }
