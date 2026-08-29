@@ -269,7 +269,7 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
 
   return (
     <div className="mt-6">
-      <div className="sticky top-14 z-20 -mx-4 space-y-3 border-b border-slate-100 bg-slate-50/95 px-4 py-3 backdrop-blur-sm md:top-0 md:mx-0 md:rounded-xl md:border md:bg-white md:px-5 md:shadow-sm">
+      <div className="space-y-3 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm md:px-5">
         {!ready ? null : !operator || editingName ? (
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-sm font-bold text-slate-900">Who are you?</p>

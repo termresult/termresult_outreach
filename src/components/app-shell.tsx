@@ -157,7 +157,7 @@ export function AppShell({
       ) : null}
 
       <div className="md:pl-64">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3 md:hidden">
           <p className="font-bold text-slate-900">Outreach</p>
           <button
             type="button"
