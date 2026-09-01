@@ -75,6 +75,11 @@ export function alreadyTalked(status: FollowUpStatus): boolean {
   return status !== "not_yet_contacted";
 }
 
+export function firstTalkedBy(row: Pick<Proprietor, "contact_person">): string | null {
+  const name = row.contact_person?.trim() ?? "";
+  return name || null;
+}
+
 export function isFollowUpStatus(value: unknown): value is FollowUpStatus {
   return typeof value === "string" && (FOLLOW_UP_STATUSES as readonly string[]).includes(value);
 }

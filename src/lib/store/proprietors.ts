@@ -302,6 +302,7 @@ export async function updateProprietor(
   const next = applyInput(existing, input);
   const proprietor: Proprietor = {
     ...next,
+    contact_person: existing.contact_person ?? next.contact_person ?? name,
     updated_at: now,
     updated_by: name,
     talking_by: null,

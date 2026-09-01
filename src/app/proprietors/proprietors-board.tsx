@@ -15,6 +15,7 @@ import {
   OPERATOR_STORAGE_KEY,
   SOFTWARE_LABELS,
   alreadyTalked,
+  firstTalkedBy,
   isLockActive,
   type FollowUpStatus,
   type Proprietor,
@@ -25,6 +26,7 @@ import {
 const NAME_KEY = OPERATOR_STORAGE_KEY;
 
 type Filter = "all" | "not_yet" | "talked" | "talking";
+type FirstTalker = "all" | (typeof OPERATOR_NAMES)[number];
 
 type FormState = {
   school_name: string;
@@ -133,6 +135,7 @@ export function ProprietorsBoard({
   const [editingName, setEditingName] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [firstTalker, setFirstTalker] = useState<FirstTalker>("all");
   const openedRow = openId ? initial.find((item) => item.id === openId) ?? null : null;
   const [open, setOpen] = useState(Boolean(openedRow));
   const [editing, setEditing] = useState<Proprietor | null>(openedRow);
@@ -183,12 +186,13 @@ export function ProprietorsBoard({
       if (filter === "not_yet" && row.status !== "not_yet_contacted") return false;
       if (filter === "talked" && !alreadyTalked(row.status)) return false;
       if (filter === "talking" && !isLockActive(row)) return false;
+      if (firstTalker !== "all" && firstTalkedBy(row) !== firstTalker) return false;
       if (!q) return true;
       return [row.school_name, row.proprietor_name, row.phone, row.email, row.contact_person]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
-  }, [rows, query, filter]);
+  }, [rows, query, filter, firstTalker]);
 
   function needName(): boolean {
     if (operator) return false;
@@ -220,7 +224,10 @@ export function ProprietorsBoard({
     setBusy(true);
     setError(null);
     setNotice(null);
-    const payload = { ...toInput({ ...form, contact_person: operator }), operator_name: operator };
+    const payload = {
+      ...toInput({ ...form, contact_person: editing?.contact_person || operator }),
+      operator_name: operator,
+    };
     try {
       if (editing) {
         const response = await fetch(`/api/proprietors/${editing.id}`, {
@@ -374,10 +381,36 @@ export function ProprietorsBoard({
             );
           })}
         </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">First talk</p>
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            {([{ id: "all" as const, label: "Anyone" }, ...OPERATOR_NAMES.map((name) => ({ id: name, label: name }))]).map(
+              (item) => {
+                const active = firstTalker === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFirstTalker(item.id)}
+                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold"
+                    style={
+                      active
+                        ? { backgroundColor: hexToRgba(BRAND, 0.08), color: BRAND }
+                        : { backgroundColor: "#fff", color: "#475569", border: "1px solid #e2e8f0" }
+                    }
+                  >
+                    {item.label}
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </div>
       </div>
 
       <p className="mt-4 text-sm text-slate-500">
-        Showing {visible.length} of {rows.length} schools.
+        Showing {visible.length} of {rows.length} schools
+        {firstTalker === "all" ? "." : ` \u00b7 first talk ${firstTalker}.`}
       </p>
 
       {rows.length === 0 ? (
@@ -427,10 +460,10 @@ export function ProprietorsBoard({
           </div>
 
           <div className="mt-4 hidden overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm md:block">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["School", "Proprietor", "Status", "Install", "Students", "Fees", "Software", "Last talk"].map((label) => (
+                  {["School", "Proprietor", "Status", "First talk", "Install", "Students", "Fees", "Software", "Last talk"].map((label) => (
                     <th
                       key={label}
                       className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
@@ -457,6 +490,7 @@ export function ProprietorsBoard({
                     <td className="px-4 py-3">
                       <StatusBadge status={row.status} />
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{firstTalkedBy(row) ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {row.install_date
                         ? `${formatInstallDay(row.install_date)}${row.install_booked_by ? ` · ${row.install_booked_by}` : ""}`
@@ -513,13 +547,15 @@ export function ProprietorsBoard({
               <Field label="School name" value={form.school_name} onChange={(school_name) => setForm({ ...form, school_name })} />
               <Field label="Proprietor name" value={form.proprietor_name} onChange={(proprietor_name) => setForm({ ...form, proprietor_name })} />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contact person</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">First talk</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">
                   {form.contact_person || "Not set yet"}
                 </p>
                 {!form.contact_person ? (
-                  <p className="mt-1 text-xs text-slate-500">Saves as {operator} only when you update this school.</p>
-                ) : null}
+                  <p className="mt-1 text-xs text-slate-500">Saves as {operator} the first time you update this school.</p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">Stays with the first person who talked to them.</p>
+                )}
               </div>
               <Field label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} type="email" />
               <Field label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
@@ -623,15 +659,20 @@ function StatusBadge({ status }: { status: FollowUpStatus }) {
 }
 
 function TalkLine({ row }: { row: Proprietor }) {
+  const first = firstTalkedBy(row);
   if (isLockActive(row)) {
     return (
-      <p className="mt-2 text-xs font-semibold text-amber-700">{row.talking_by} is talking to this school</p>
+      <p className="mt-2 text-xs font-semibold text-amber-700">
+        {first ? `First talk: ${first} · ` : ""}
+        {row.talking_by} is talking to this school
+      </p>
     );
   }
-  if (alreadyTalked(row.status)) {
+  if (first || alreadyTalked(row.status)) {
     return (
       <p className="mt-2 text-xs text-slate-500">
-        Last talked: {row.updated_by} · {when(row.updated_at)}
+        {first ? `First talk: ${first}` : "First talk not saved"}
+        {alreadyTalked(row.status) ? ` · Last: ${row.updated_by} · ${when(row.updated_at)}` : ""}
       </p>
     );
   }

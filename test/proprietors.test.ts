@@ -10,7 +10,7 @@ import {
 } from "@/lib/store/proprietors";
 import { resetMemoryStore, memoryStore } from "@/lib/store/memory";
 import { searchSchools, todayInLagos } from "@/lib/proprietors/install-date";
-import { LOCK_MS, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
+import { LOCK_MS, firstTalkedBy, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
 
 function dayFromToday(offset: number): string {
   const [year, month, day] = todayInLagos().split("-").map(Number);
@@ -134,6 +134,32 @@ describe("proprietor store", () => {
     expect(row?.contact_person).toBeNull();
     expect(row?.status).toBe("not_yet_contacted");
     expect(row?.talking_by).toBeNull();
+  });
+
+  it("keeps the first contact person when someone else later updates", async () => {
+    const created = await createProprietor({ school_name: "LEA Mabushi" }, "Registration list");
+    const first = await updateProprietor(
+      created.proprietor.id,
+      { status: "in_conversation", contact_person: "Possible" },
+      "Possible",
+    );
+    expect(first.contact_person).toBe("Possible");
+    expect(firstTalkedBy(first)).toBe("Possible");
+
+    const later = await updateProprietor(
+      first.id,
+      { status: "email_sent", contact_person: "Abdul" },
+      "Abdul",
+    );
+    expect(later.contact_person).toBe("Possible");
+    expect(later.updated_by).toBe("Abdul");
+    expect(firstTalkedBy(later)).toBe("Possible");
+  });
+
+  it("sets the actor as first talker when none was saved yet", async () => {
+    const created = await createProprietor({ school_name: "LEA Jabi" }, "Registration list");
+    const saved = await updateProprietor(created.proprietor.id, { status: "in_conversation" }, "Pelumi");
+    expect(saved.contact_person).toBe("Pelumi");
   });
 
   it("does not steal an active lock from someone else", async () => {
