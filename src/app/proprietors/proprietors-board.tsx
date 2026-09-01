@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NotebookPen, Plus, X } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, NotebookPen, Plus, X } from "lucide-react";
 import { EmptyState } from "@/components/ui/ds";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
@@ -326,15 +327,24 @@ export function ProprietorsBoard({
                 Change
               </button>
             </p>
-            <button
-              type="button"
-              onClick={() => void openNew()}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
-              style={{ backgroundColor: BRAND }}
-            >
-              <Plus className="h-4 w-4" />
-              Add school
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                href="/proprietors/calendar"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm"
+              >
+                <CalendarDays className="h-4 w-4" />
+                Check free dates
+              </Link>
+              <button
+                type="button"
+                onClick={() => void openNew()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
+                style={{ backgroundColor: BRAND }}
+              >
+                <Plus className="h-4 w-4" />
+                Add school
+              </button>
+            </div>
           </div>
         )}
         <input

@@ -15,8 +15,8 @@ export default async function InstallCalendarPage() {
     <AppShell email={user.email}>
       <PageHeader
         eyebrow="Install calendar"
-        title="One school a day"
-        description="When a school is free, book that day. The rest of the team cannot take it."
+        title="Free and booked days"
+        description="If a school asks for a day, open this and see whether the team is free."
       />
       <InstallCalendar initial={rows} />
     </AppShell>
