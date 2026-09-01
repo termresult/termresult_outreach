@@ -12,6 +12,7 @@ import {
   FOLLOW_UP_LABELS,
   FOLLOW_UP_STATUSES,
   OPERATOR_NAMES,
+  OPERATOR_STORAGE_KEY,
   SOFTWARE_LABELS,
   alreadyTalked,
   isLockActive,
@@ -21,7 +22,7 @@ import {
   type SchoolSoftware,
 } from "@/types/proprietor";
 
-const NAME_KEY = "outreach_operator_name";
+const NAME_KEY = OPERATOR_STORAGE_KEY;
 
 type Filter = "all" | "not_yet" | "talked" | "talking";
 

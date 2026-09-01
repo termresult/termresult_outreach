@@ -3,19 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatInstallDayLong, todayInLagos } from "@/lib/proprietors/install-date";
+import { OPERATOR_NAMES, OPERATOR_STORAGE_KEY } from "@/types/proprietor";
 import type { Proprietor } from "@/types/proprietor";
 import { InstallMonthGrid } from "../install-month-grid";
+import { BookSchoolSheet } from "./book-school-sheet";
 
 export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
   const [rows, setRows] = useState(initial);
   const [today, setToday] = useState("");
   const [cursor, setCursor] = useState({ year: 2026, month: 1 });
+  const [picking, setPicking] = useState<string | null>(null);
+  const [operator, setOperator] = useState("");
 
   useEffect(() => {
     const current = todayInLagos();
     const [year, month] = current.split("-").map(Number);
     setToday(current);
     setCursor({ year, month });
+    const saved = window.localStorage.getItem(OPERATOR_STORAGE_KEY) ?? "";
+    setOperator((OPERATOR_NAMES as readonly string[]).includes(saved) ? saved : "");
   }, []);
 
   const refresh = useCallback(async () => {
@@ -57,7 +63,7 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
       <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <p className="text-sm font-bold text-slate-900">Are we free that day?</p>
         <p className="mt-1 text-xs text-slate-500">
-          Green days are open. Blue days already have a school. Tap a booked day to open it.
+          Tap a green day, search the school, and book it. Blue days already have a school.
         </p>
         <div className="mt-4">
           <InstallMonthGrid
@@ -66,6 +72,7 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
             today={today}
             booked={booked}
             onMonthChange={setCursor}
+            onPickFree={setPicking}
           />
         </div>
       </div>
@@ -92,6 +99,24 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
           </div>
         )}
       </div>
+
+      {picking ? (
+        <BookSchoolSheet
+          date={picking}
+          rows={rows}
+          operator={operator}
+          onOperator={setOperator}
+          onClose={() => setPicking(null)}
+          onBooked={(row) => {
+            setRows((current) =>
+              current
+                .map((item) => (item.id === row.id ? row : item))
+                .sort((a, b) => a.school_name.localeCompare(b.school_name)),
+            );
+            setPicking(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

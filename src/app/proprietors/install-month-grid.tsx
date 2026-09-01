@@ -17,6 +17,7 @@ export function InstallMonthGrid({
   ownerId,
   onMonthChange,
   onSelect,
+  onPickFree,
 }: {
   year: number;
   month: number;
@@ -26,6 +27,7 @@ export function InstallMonthGrid({
   ownerId?: string | null;
   onMonthChange: (next: { year: number; month: number }) => void;
   onSelect?: (date: string) => void;
+  onPickFree?: (date: string) => void;
 }) {
   const cells = monthCells(year, month);
   const inMonth = cells.filter((cell) => cell.inMonth && cell.date >= today);
@@ -132,12 +134,13 @@ export function InstallMonthGrid({
           }
 
           const free = !past;
-          if (onSelect && free && cell.inMonth) {
+          const pickFree = onSelect ?? onPickFree;
+          if (pickFree && free && cell.inMonth) {
             return (
               <button
                 key={cell.date}
                 type="button"
-                onClick={() => onSelect(cell.date)}
+                onClick={() => pickFree(cell.date)}
                 className="min-h-[76px] rounded-xl border p-1.5 text-left"
                 style={{
                   borderColor: selected === cell.date ? "#059669" : "#bbf7d0",

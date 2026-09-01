@@ -9,7 +9,7 @@ import {
   updateProprietor,
 } from "@/lib/store/proprietors";
 import { resetMemoryStore, memoryStore } from "@/lib/store/memory";
-import { todayInLagos } from "@/lib/proprietors/install-date";
+import { searchSchools, todayInLagos } from "@/lib/proprietors/install-date";
 import { LOCK_MS, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
 
 function dayFromToday(offset: number): string {
@@ -203,5 +203,19 @@ describe("install slots", () => {
     await expect(
       updateProprietor(first.proprietor.id, { install_date: dayFromToday(-1) }, "Abdul"),
     ).rejects.toThrow("already passed");
+  });
+});
+
+describe("searchSchools", () => {
+  it("matches school name, proprietor, or phone and puts unbooked first", () => {
+    const rows = [
+      sample({ id: "a", school_name: "Gracious Grace School", proprietor_name: "Nkiruka", phone: "8052117428", install_date: "2026-09-08" }),
+      sample({ id: "b", school_name: "Adorable Stars Model Academy", proprietor_name: "Barbara", phone: "8067759634", install_date: null }),
+      sample({ id: "c", school_name: "Bankys Private School", proprietor_name: "olusola Bankole", phone: "8023249880", install_date: null }),
+    ];
+    expect(searchSchools(rows, "adorable").map((row) => row.id)).toEqual(["b"]);
+    expect(searchSchools(rows, "805211").map((row) => row.id)).toEqual(["a"]);
+    expect(searchSchools(rows, "barbara").map((row) => row.id)).toEqual(["b"]);
+    expect(searchSchools(rows, "").map((row) => row.id)).toEqual(["b", "c", "a"]);
   });
 });

@@ -80,3 +80,26 @@ function formatParts(date: string, options: Intl.DateTimeFormatOptions): string 
   const [year, month, day] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", options).format(new Date(Date.UTC(year, month - 1, day)));
 }
+
+export function searchSchools<T extends {
+  school_name: string;
+  proprietor_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  install_date?: string | null;
+}>(rows: T[], query: string): T[] {
+  const q = query.trim().toLowerCase();
+  const matched = q
+    ? rows.filter((row) =>
+        [row.school_name, row.proprietor_name, row.phone, row.email]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(q)),
+      )
+    : [...rows];
+  return matched.sort((a, b) => {
+    const aBooked = Boolean(a.install_date);
+    const bBooked = Boolean(b.install_date);
+    if (aBooked !== bBooked) return aBooked ? 1 : -1;
+    return a.school_name.localeCompare(b.school_name);
+  });
+}

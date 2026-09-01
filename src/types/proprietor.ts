@@ -28,6 +28,8 @@ export const SOFTWARE_LABELS: Record<SchoolSoftware, string> = {
 
 export const OPERATOR_NAMES = ["Iyanu", "Possible", "Abdul", "Pelumi"] as const;
 
+export const OPERATOR_STORAGE_KEY = "outreach_operator_name";
+
 export const LOCK_MS = 15 * 60 * 1000;
 
 export type Proprietor = {
