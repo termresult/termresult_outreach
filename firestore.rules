@@ -26,5 +26,8 @@ service cloud.firestore {
     match /proprietors/{id} {
       allow read, write: if allowlisted();
     }
+    match /install_slots/{id} {
+      allow read, write: if allowlisted();
+    }
   }
 }

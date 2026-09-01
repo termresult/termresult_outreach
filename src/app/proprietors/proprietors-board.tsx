@@ -5,6 +5,8 @@ import { NotebookPen, Plus, X } from "lucide-react";
 import { EmptyState } from "@/components/ui/ds";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
+import { formatInstallDay } from "@/lib/proprietors/install-date";
+import { InstallDateField } from "./install-date-field";
 import {
   FOLLOW_UP_LABELS,
   FOLLOW_UP_STATUSES,
@@ -34,6 +36,7 @@ type FormState = {
   average_fees: string;
   software: SchoolSoftware;
   software_other: string;
+  install_date: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -48,6 +51,7 @@ const emptyForm = (): FormState => ({
   average_fees: "",
   software: "none",
   software_other: "",
+  install_date: "",
 });
 
 function fromRow(row: Proprietor): FormState {
@@ -63,6 +67,7 @@ function fromRow(row: Proprietor): FormState {
     average_fees: row.average_fees != null ? String(row.average_fees) : "",
     software: row.software,
     software_other: row.software_other ?? "",
+    install_date: row.install_date ?? "",
   };
 }
 
@@ -79,6 +84,7 @@ function toInput(form: FormState): ProprietorInput {
     average_fees: form.average_fees ? Number(form.average_fees) : null,
     software: form.software,
     software_other: form.software_other,
+    install_date: form.install_date || null,
   };
 }
 
@@ -112,16 +118,23 @@ function when(iso: string): string {
   return iso.replace("T", " ").slice(0, 16);
 }
 
-export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
+export function ProprietorsBoard({
+  initial,
+  openId = null,
+}: {
+  initial: Proprietor[];
+  openId?: string | null;
+}) {
   const [rows, setRows] = useState(initial);
   const [operator, setOperator] = useState("");
   const [draftName, setDraftName] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Proprietor | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const openedRow = openId ? initial.find((item) => item.id === openId) ?? null : null;
+  const [open, setOpen] = useState(Boolean(openedRow));
+  const [editing, setEditing] = useState<Proprietor | null>(openedRow);
+  const [form, setForm] = useState<FormState>(openedRow ? fromRow(openedRow) : emptyForm());
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -391,6 +404,12 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
                   {" · "}
                   {softwareLine(row)}
                 </p>
+                {row.install_date ? (
+                  <p className="mt-1 text-sm font-semibold" style={{ color: BRAND }}>
+                    Install {formatInstallDay(row.install_date)}
+                    {row.install_booked_by ? ` · ${row.install_booked_by}` : ""}
+                  </p>
+                ) : null}
                 <TalkLine row={row} />
               </button>
             ))}
@@ -400,7 +419,7 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
             <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["School", "Proprietor", "Status", "Students", "Fees", "Software", "Last talk"].map((label) => (
+                  {["School", "Proprietor", "Status", "Install", "Students", "Fees", "Software", "Last talk"].map((label) => (
                     <th
                       key={label}
                       className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
@@ -426,6 +445,11 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
                     <td className="px-4 py-3 text-slate-600">{row.proprietor_name || "—"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={row.status} />
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {row.install_date
+                        ? `${formatInstallDay(row.install_date)}${row.install_booked_by ? ` · ${row.install_booked_by}` : ""}`
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{row.student_count ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{naira(row.average_fees)}</td>
@@ -488,6 +512,12 @@ export function ProprietorsBoard({ initial }: { initial: Proprietor[] }) {
               </div>
               <Field label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} type="email" />
               <Field label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+              <InstallDateField
+                value={form.install_date}
+                ownerId={editing?.id ?? null}
+                rows={rows}
+                onChange={(install_date) => setForm({ ...form, install_date })}
+              />
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Follow-up status</span>
                 <FormSelect

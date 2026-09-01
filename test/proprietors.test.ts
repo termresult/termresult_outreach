@@ -9,7 +9,14 @@ import {
   updateProprietor,
 } from "@/lib/store/proprietors";
 import { resetMemoryStore, memoryStore } from "@/lib/store/memory";
+import { todayInLagos } from "@/lib/proprietors/install-date";
 import { LOCK_MS, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
+
+function dayFromToday(offset: number): string {
+  const [year, month, day] = todayInLagos().split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + offset));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
 
 function sample(over: Partial<Proprietor> = {}): Proprietor {
   return {
@@ -32,6 +39,8 @@ function sample(over: Partial<Proprietor> = {}): Proprietor {
     talking_by: "Amina",
     talking_at: new Date().toISOString(),
     seed_sn: null,
+    install_date: null,
+    install_booked_by: null,
     ...over,
   };
 }
@@ -132,5 +141,67 @@ describe("proprietor store", () => {
     await lockProprietor(created.proprietor.id, "Amina");
     const again = await lockProprietor(created.proprietor.id, "Chidi");
     expect(again.talking_by).toBe("Amina");
+  });
+});
+
+describe("install slots", () => {
+  afterEach(() => {
+    resetMemoryStore();
+  });
+
+  it("lets the first school claim a day", async () => {
+    const first = await createProprietor({ school_name: "Gracious Grace School" }, "Possible");
+    const booked = await updateProprietor(first.proprietor.id, { install_date: dayFromToday(1) }, "Possible");
+    expect(booked.install_date).toBe(dayFromToday(1));
+    expect(booked.install_booked_by).toBe("Possible");
+    expect(memoryStore().install_slots[dayFromToday(1)]?.proprietor_id).toBe(first.proprietor.id);
+  });
+
+  it("rejects a second school on the same day", async () => {
+    const first = await createProprietor({ school_name: "Gracious Grace School" }, "Possible");
+    const second = await createProprietor({ school_name: "Adorable Stars Model Academy" }, "Abdul");
+    await updateProprietor(first.proprietor.id, { install_date: dayFromToday(2) }, "Possible");
+    await expect(
+      updateProprietor(second.proprietor.id, { install_date: dayFromToday(2) }, "Abdul"),
+    ).rejects.toThrow("Possible already booked Gracious Grace School");
+  });
+
+  it("lets the same school keep its own day", async () => {
+    const first = await createProprietor({ school_name: "Armorsville Academy" }, "Iyanu");
+    await updateProprietor(first.proprietor.id, { install_date: dayFromToday(3) }, "Iyanu");
+    const again = await updateProprietor(
+      first.proprietor.id,
+      { install_date: dayFromToday(3), notes: "Confirmed" },
+      "Pelumi",
+    );
+    expect(again.install_date).toBe(dayFromToday(3));
+    expect(again.install_booked_by).toBe("Iyanu");
+    expect(again.notes).toBe("Confirmed");
+  });
+
+  it("frees the old day when a school reschedules", async () => {
+    const first = await createProprietor({ school_name: "Bankys Private School" }, "Possible");
+    const second = await createProprietor({ school_name: "AngelWings Comprehensive College" }, "Abdul");
+    await updateProprietor(first.proprietor.id, { install_date: dayFromToday(4) }, "Possible");
+    await updateProprietor(first.proprietor.id, { install_date: dayFromToday(5) }, "Possible");
+    const moved = await updateProprietor(second.proprietor.id, { install_date: dayFromToday(4) }, "Abdul");
+    expect(moved.install_date).toBe(dayFromToday(4));
+    expect(memoryStore().install_slots[dayFromToday(5)]?.proprietor_id).toBe(first.proprietor.id);
+  });
+
+  it("frees the day when the date is cleared", async () => {
+    const first = await createProprietor({ school_name: "Holy Hill School" }, "Pelumi");
+    const second = await createProprietor({ school_name: "Joymon academy" }, "Iyanu");
+    await updateProprietor(first.proprietor.id, { install_date: dayFromToday(6) }, "Pelumi");
+    await updateProprietor(first.proprietor.id, { install_date: null }, "Pelumi");
+    const claimed = await updateProprietor(second.proprietor.id, { install_date: dayFromToday(6) }, "Iyanu");
+    expect(claimed.install_booked_by).toBe("Iyanu");
+  });
+
+  it("rejects booking a past day", async () => {
+    const first = await createProprietor({ school_name: "Tots Academy Abuja" }, "Abdul");
+    await expect(
+      updateProprietor(first.proprietor.id, { install_date: dayFromToday(-1) }, "Abdul"),
+    ).rejects.toThrow("already passed");
   });
 });

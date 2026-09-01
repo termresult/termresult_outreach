@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { DocumentData } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import {
+  asInstallDate,
+  isPastInstallDate,
+  slotTakenMessage,
+  todayInLagos,
+  type InstallSlot,
+} from "@/lib/proprietors/install-date";
 import { schoolKey } from "@/lib/proprietors/school-key";
 import { memoryStore, useMemoryStore } from "@/lib/store/memory";
 import {
@@ -25,7 +32,12 @@ export class ProprietorError extends Error {
 
 function asProprietor(id: string, data: DocumentData | undefined): Proprietor | null {
   if (!data) return null;
-  return withEffectiveLock({ ...(data as Proprietor), id: (data.id as string) || id });
+  return withEffectiveLock({
+    ...(data as Proprietor),
+    id: (data.id as string) || id,
+    install_date: (data.install_date as string | null | undefined) ?? null,
+    install_booked_by: (data.install_booked_by as string | null | undefined) ?? null,
+  });
 }
 
 function blank(value: string | null | undefined): string | null {
@@ -65,7 +77,16 @@ function applyInput(base: Proprietor, input: Partial<ProprietorInput>): Propriet
         ? blank(input.software_other)
         : base.software_other
       : null,
+    install_date: input.install_date !== undefined ? parseInstallDate(input.install_date) : base.install_date,
   };
+}
+
+function parseInstallDate(value: string | null | undefined): string | null {
+  try {
+    return asInstallDate(value);
+  } catch {
+    throw new ProprietorError("Install date must be a calendar day.", 400);
+  }
 }
 
 function requireActor(actor: string): string {
@@ -80,6 +101,96 @@ async function persist(row: Proprietor): Promise<void> {
     return;
   }
   await adminDb().collection("proprietors").doc(row.id).set(row);
+}
+
+function emptyInstallFields() {
+  return {
+    install_date: null as string | null,
+    install_booked_by: null as string | null,
+  };
+}
+
+function asSlot(data: DocumentData | undefined): InstallSlot | null {
+  if (!data?.date || !data.proprietor_id) return null;
+  return {
+    date: String(data.date),
+    proprietor_id: String(data.proprietor_id),
+    school_name: String(data.school_name ?? ""),
+    booked_by: String(data.booked_by ?? ""),
+    booked_at: String(data.booked_at ?? ""),
+  };
+}
+
+function rememberSlot(slot: InstallSlot | null, previousDate: string | null, nextDate: string | null) {
+  const slots = memoryStore().install_slots;
+  if (previousDate && previousDate !== nextDate) delete slots[previousDate];
+  if (nextDate && slot) slots[nextDate] = slot;
+  if (!nextDate && previousDate) delete slots[previousDate];
+}
+
+async function writeWithInstallSlot(
+  previous: Proprietor | null,
+  row: Proprietor,
+  actor: string,
+  now: string,
+): Promise<Proprietor> {
+  const previousDate = previous?.install_date ?? null;
+  const nextDate = row.install_date;
+  if (nextDate && nextDate !== previousDate && isPastInstallDate(nextDate)) {
+    throw new ProprietorError("That day has already passed.", 400);
+  }
+
+  if (nextDate === previousDate) {
+    const next = {
+      ...row,
+      install_booked_by: nextDate ? previous?.install_booked_by ?? actor : null,
+    };
+    await persist(next);
+    return next;
+  }
+
+  const slot: InstallSlot | null = nextDate
+    ? {
+        date: nextDate,
+        proprietor_id: row.id,
+        school_name: row.school_name,
+        booked_by: actor,
+        booked_at: now,
+      }
+    : null;
+
+  if (useMemoryStore()) {
+    if (nextDate) {
+      const taken = memoryStore().install_slots[nextDate];
+      if (taken && taken.proprietor_id !== row.id) {
+        throw new ProprietorError(slotTakenMessage(taken), 409);
+      }
+    }
+    rememberSlot(slot, previousDate, nextDate);
+    const next = { ...row, install_booked_by: slot?.booked_by ?? null };
+    await persist(next);
+    return next;
+  }
+
+  const db = adminDb();
+  const proprietorRef = db.collection("proprietors").doc(row.id);
+  const nextRef = nextDate ? db.collection("install_slots").doc(nextDate) : null;
+  const previousRef = previousDate && previousDate !== nextDate
+    ? db.collection("install_slots").doc(previousDate)
+    : null;
+
+  await db.runTransaction(async (tx) => {
+    const takenSnap = nextRef ? await tx.get(nextRef) : null;
+    const taken = takenSnap ? asSlot(takenSnap.data()) : null;
+    if (taken && taken.proprietor_id !== row.id) {
+      throw new ProprietorError(slotTakenMessage(taken), 409);
+    }
+    if (previousRef) tx.delete(previousRef);
+    if (nextRef && slot && !taken) tx.set(nextRef, slot);
+    tx.set(proprietorRef, { ...row, install_booked_by: slot?.booked_by ?? null });
+  });
+
+  return { ...row, install_booked_by: slot?.booked_by ?? null };
 }
 
 export async function listProprietors(): Promise<Proprietor[]> {
@@ -118,9 +229,11 @@ export async function getProprietorBySchoolKey(key: string): Promise<Proprietor 
 
 export async function proprietorStats() {
   const rows = await listProprietors();
+  const today = todayInLagos();
   return {
     schools: rows.length,
     already_talked: rows.filter((row) => row.status !== "not_yet_contacted").length,
+    upcoming_installs: rows.filter((row) => row.install_date && row.install_date >= today).length,
   };
 }
 
@@ -158,12 +271,13 @@ export async function createProprietor(
       talking_by: null,
       talking_at: null,
       seed_sn: null,
+      ...emptyInstallFields(),
     },
     { ...input, school_name },
   );
 
-  await persist(proprietor);
-  return { proprietor, created: true };
+  const saved = await writeWithInstallSlot(null, proprietor, name, now);
+  return { proprietor: saved, created: true };
 }
 
 export async function updateProprietor(
@@ -194,8 +308,7 @@ export async function updateProprietor(
     talking_at: null,
   };
 
-  await persist(proprietor);
-  return proprietor;
+  return writeWithInstallSlot(existing, proprietor, name, now);
 }
 
 export async function lockProprietor(id: string, actor: string): Promise<Proprietor> {
@@ -226,7 +339,7 @@ export async function upsertSeededProprietor(
 ): Promise<{ proprietor: Proprietor; created: boolean }> {
   const id = `reg-${sn}`;
   const existing = await getProprietor(id);
-  if (existing?.contact_person || (existing && existing.status !== "not_yet_contacted")) {
+  if (existing?.contact_person || existing?.install_date || (existing && existing.status !== "not_yet_contacted")) {
     return { proprietor: existing, created: false };
   }
 
@@ -252,6 +365,7 @@ export async function upsertSeededProprietor(
     talking_by: null,
     talking_at: null,
     seed_sn: sn,
+    ...emptyInstallFields(),
   };
 
   const proprietor = applyInput(

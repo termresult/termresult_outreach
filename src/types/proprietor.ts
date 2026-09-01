@@ -50,6 +50,8 @@ export type Proprietor = {
   talking_by: string | null;
   talking_at: string | null;
   seed_sn: number | null;
+  install_date: string | null;
+  install_booked_by: string | null;
 };
 
 export type ProprietorInput = {
@@ -64,6 +66,7 @@ export type ProprietorInput = {
   average_fees?: number | null;
   software?: SchoolSoftware;
   software_other?: string | null;
+  install_date?: string | null;
 };
 
 export function alreadyTalked(status: FollowUpStatus): boolean {

@@ -3,6 +3,7 @@ import type { OutreachContact } from "@/types/contact";
 import type { Message, Suppression } from "@/types/message";
 import type { Proprietor } from "@/types/proprietor";
 import type { OutreachSettings } from "@/lib/store/settings";
+import type { InstallSlot } from "@/lib/proprietors/install-date";
 
 export type MemoryStore = {
   contacts: Record<string, OutreachContact>;
@@ -11,6 +12,7 @@ export type MemoryStore = {
   suppressions: Suppression[];
   settings: OutreachSettings | null;
   proprietors: Record<string, Proprietor>;
+  install_slots: Record<string, InstallSlot>;
 };
 
 const memory: MemoryStore = {
@@ -20,6 +22,7 @@ const memory: MemoryStore = {
   suppressions: [],
   settings: null,
   proprietors: {},
+  install_slots: {},
 };
 
 export function useMemoryStore(): boolean {
@@ -37,4 +40,5 @@ export function resetMemoryStore() {
   memory.suppressions = [];
   memory.settings = null;
   memory.proprietors = {};
+  memory.install_slots = {};
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Megaphone, Mail, NotebookPen, Phone, Users } from "lucide-react";
+import { CalendarDays, Megaphone, Mail, NotebookPen, Phone, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader, StatCard } from "@/components/ui/ds";
 import { getSessionUser } from "@/lib/auth/session";
@@ -29,6 +29,12 @@ export default async function HomePage() {
         : "Live conversation list",
       icon: NotebookPen,
     },
+    {
+      label: "Installs booked",
+      value: String(proprietors.upcoming_installs),
+      hint: proprietors.upcoming_installs ? "Upcoming installation days" : "None booked yet",
+      icon: CalendarDays,
+    },
   ];
 
   return (
@@ -39,7 +45,7 @@ export default async function HomePage() {
         description="Import the list, browse schools, then queue a campaign. Nothing is sent yet."
       />
 
-      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -61,6 +67,12 @@ export default async function HomePage() {
           style={{ backgroundColor: BRAND }}
         >
           Open proprietor tracker
+        </Link>
+        <Link
+          href="/proprietors/calendar"
+          className="inline-flex h-10 items-center rounded-full border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm"
+        >
+          Install calendar
         </Link>
         {stats.schools === 0 ? (
           <Link
