@@ -1,5 +1,5 @@
 import type { DocumentData } from "firebase-admin/firestore";
-import type { SeedAttendee } from "@/lib/attendees/seed-data";
+import { ATTENDEE_SEED_ROWS, type SeedAttendee } from "@/lib/attendees/seed-data";
 import { adminDb } from "@/lib/firebase/admin";
 import { memoryStore, useMemoryStore as isMemoryStore } from "@/lib/store/memory";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/types/attendee";
 
 const COLLECTION = "event_attendees";
+const SEED_ATTENDEES_BY_ID = new Map(ATTENDEE_SEED_ROWS.map((row) => [row.id, row]));
 
 export class AttendeeError extends Error {
   constructor(
@@ -76,13 +77,25 @@ export async function listAttendees(): Promise<Attendee[]> {
     .sort(compareAttendees);
 }
 
+export async function listAttendeesWithSeedBaseline(): Promise<Attendee[]> {
+  const combined = new Map(
+    ATTENDEE_SEED_ROWS.map((row) => [row.id, attendeeFromSeed(row)]),
+  );
+  for (const attendee of await listAttendees()) {
+    combined.set(attendee.id, attendee);
+  }
+  return [...combined.values()].sort(compareAttendees);
+}
+
 export async function updateAttendee(
   id: string,
   input: Partial<AttendeeInput>,
   actor: string,
 ): Promise<Attendee> {
   const name = requireActor(actor);
-  const existing = await getAttendee(id);
+  const persisted = await getAttendee(id);
+  const seed = SEED_ATTENDEES_BY_ID.get(id);
+  const existing = persisted ?? (seed ? attendeeFromSeed(seed) : null);
   if (!existing) throw new AttendeeError("Attendee not found.", 404);
 
   const schoolName =

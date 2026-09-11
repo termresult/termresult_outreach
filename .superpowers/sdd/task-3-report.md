@@ -216,3 +216,87 @@ Observed:
 ### Follow-up concerns
 
 None.
+
+## Verification Follow-up: Seed Baseline Read Model
+
+### Root cause
+
+The attendee page called `listAttendees()`, whose intentional contract is to return only persisted records. The reviewed seed dataset was consumed only by the out-of-band seed command, so empty Firestore produced an empty `/attendees` page even though the application already shipped all 121 authoritative baseline rows. The same persisted-only lookup made PATCH return 404 for a valid baseline ID before seeding.
+
+### RED
+
+Command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed:
+
+- Exit code: 1
+- 24 tests ran: 20 passed and 4 failed.
+- Three read-model tests failed because `listAttendeesWithSeedBaseline` did not exist.
+- The baseline-edit test failed with `Attendee not found.` for an unpersisted seed ID.
+- The failures covered empty-storage baseline visibility, persisted-over-baseline replacement, inclusion and sorting of non-seed persisted rows, and edit persistence for an unpersisted baseline row.
+
+### GREEN
+
+First focused GREEN command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed:
+
+- Exit code: 0
+- 1 test file passed.
+- 24 tests passed.
+
+Final focused command:
+
+`pnpm test test/attendees.test.ts test/attendees-route.test.ts`
+
+Observed:
+
+- Exit code: 0
+- 2 test files passed.
+- 40 tests passed.
+
+Final full command:
+
+`pnpm test`
+
+Observed:
+
+- Exit code: 0
+- 11 test files passed.
+- 80 tests passed.
+
+Changed-file lint command:
+
+`pnpm exec eslint test/attendees.test.ts src/lib/store/attendees.ts src/app/attendees/page.tsx`
+
+Observed:
+
+- Exit code: 0.
+- No lint findings.
+
+Build command:
+
+`pnpm build`
+
+Observed:
+
+- Exit code: 0.
+- Next.js 16.3.1 compiled successfully and TypeScript completed successfully.
+- The route manifest includes `/attendees`, `/api/attendees`, and `/api/attendees/[id]`.
+
+### Changes
+
+- Added `listAttendeesWithSeedBaseline()`, a read-only combined view that starts with all 121 `ATTENDEE_SEED_ROWS`, replaces matching IDs with persisted records, retains non-seed persisted records, and applies the established attendee ordering.
+- Kept `listAttendees()` as the raw persisted-store contract so tests and seed operations remain isolated.
+- Updated `/attendees` to use the combined baseline read function.
+- Updated `updateAttendee()` to fall back to the matching seed baseline when no persisted row exists, then persist the edited result through the existing memory/Firestore path.
+- Kept truly unknown IDs as 404 and kept `upsertSeedAttendee()` create-only.
+- Confirmed the combined read does not populate memory or write baseline records to Firestore.
+
+### Follow-up concerns
+
+None.

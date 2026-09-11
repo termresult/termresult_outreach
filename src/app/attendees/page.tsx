@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/ui/ds";
 import { getSessionUser } from "@/lib/auth/session";
 import { filterAttendees, parseAttendeeQuery } from "@/lib/attendees/query";
-import { listAttendees } from "@/lib/store/attendees";
+import { listAttendeesWithSeedBaseline } from "@/lib/store/attendees";
 import { AttendeesBoard } from "./attendees-board";
 
 export default async function AttendeesPage({
@@ -22,7 +22,7 @@ export default async function AttendeesPage({
       ),
     ),
   );
-  const all = await listAttendees();
+  const all = await listAttendeesWithSeedBaseline();
   const rows = filterAttendees(all, query);
   const totals = {
     all: all.length,

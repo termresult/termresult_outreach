@@ -4,10 +4,11 @@ import { ATTENDEE_SEED_ROWS, type SeedAttendee } from "@/lib/attendees/seed-data
 import {
   AttendeeError,
   listAttendees,
+  listAttendeesWithSeedBaseline,
   updateAttendee,
   upsertSeedAttendee,
 } from "@/lib/store/attendees";
-import { resetMemoryStore } from "@/lib/store/memory";
+import { memoryStore, resetMemoryStore } from "@/lib/store/memory";
 import type { Attendee, AttendeeInput } from "@/types/attendee";
 
 function sample(over: Partial<Attendee> = {}): Attendee {
@@ -352,5 +353,72 @@ describe("attendee store", () => {
     expect(second.created).toBe(false);
     expect(second.attendee.school_name).toBe("Operator Corrected School");
     expect(second.attendee.status).toBe("did_not_attend");
+  });
+
+  it("reads all seed attendees without writing them into empty storage", async () => {
+    const attendees = await listAttendeesWithSeedBaseline();
+
+    expect(attendees).toHaveLength(121);
+    expect(attendees.map((row) => row.id)).toEqual(
+      expect.arrayContaining(ATTENDEE_SEED_ROWS.map((row) => row.id)),
+    );
+    expect(await listAttendees()).toEqual([]);
+  });
+
+  it("overlays persisted edits onto matching baseline records", async () => {
+    const baseline = ATTENDEE_SEED_ROWS[0];
+    await upsertSeedAttendee(baseline);
+    await updateAttendee(
+      baseline.id,
+      { school_name: "Operator Corrected School", status: "did_not_attend" },
+      "Amina",
+    );
+
+    const attendees = await listAttendeesWithSeedBaseline();
+    const corrected = attendees.find((row) => row.id === baseline.id);
+
+    expect(attendees).toHaveLength(121);
+    expect(corrected).toMatchObject({
+      school_name: "Operator Corrected School",
+      status: "did_not_attend",
+      updated_by: "Amina",
+    });
+  });
+
+  it("includes non-seed persisted records in the combined ordering", async () => {
+    memoryStore().attendees.custom = sample({
+      id: "custom",
+      seed_sn: null,
+      school_name: "Aardvark Community School",
+    });
+
+    const attendees = await listAttendeesWithSeedBaseline();
+
+    expect(attendees).toHaveLength(122);
+    expect(attendees[104]?.id).toBe("custom");
+    expect(attendees.slice(104).map((row) => row.school_name)).toEqual(
+      [...attendees.slice(104).map((row) => row.school_name)].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    );
+  });
+
+  it("edits an unpersisted baseline attendee and persists only that edit", async () => {
+    const baseline = ATTENDEE_SEED_ROWS[0];
+
+    const updated = await updateAttendee(
+      baseline.id,
+      { school_name: "Edited Before Seed Command" },
+      "Amina",
+    );
+
+    expect(updated).toMatchObject({
+      id: baseline.id,
+      seed_sn: baseline.seed_sn,
+      school_name: "Edited Before Seed Command",
+      source_image: baseline.source_image,
+      updated_by: "Amina",
+    });
+    expect(await listAttendees()).toEqual([updated]);
   });
 });
