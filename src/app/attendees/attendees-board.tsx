@@ -114,6 +114,7 @@ export function AttendeesBoard({
           (attendee.status === "did_not_attend" ? 1 : -1),
       }));
     }
+    setEditing(null);
   }
 
   return (

@@ -125,3 +125,36 @@ Observed:
 ### Follow-up concerns
 
 None.
+
+## Review Follow-up: Reopen After Save
+
+### Change
+
+- Restored the parent `editing` state reset at the end of `applySaved`.
+- Successful save still follows the existing lifecycle in `dismiss`: close the native dialog, restore focus to the originating edit button, then invoke `onSaved`.
+- The parent callback now updates the row and totals and clears `editing`, which unmounts the closed dialog. Selecting the same attendee creates a fresh dialog instance that can call `showModal()` again.
+
+### Verification
+
+- `pnpm test test/attendees*.test.ts`
+  - Exit 0.
+  - 3 attendee test files passed.
+  - 39 attendee tests passed.
+- `pnpm exec eslint src/app/attendees/attendees-board.tsx`
+  - Exit 0 with no findings.
+- `pnpm build`
+  - Exit 0.
+  - Next.js 16.3.1 compiled successfully and completed TypeScript.
+  - Route output includes `/attendees`.
+- `git diff --check`
+  - Exit 0.
+
+### Behavioral self-review
+
+- No pure behavior boundary changed; the fix is the React parent ownership transition itself, so no brittle source-text test or new UI test dependency was added.
+- Save order is: PATCH succeeds, optional operator storage runs best-effort, native dialog closes, trigger focus is restored, row/totals update, and parent editing state clears.
+- Reopening the same row mounts a new editor with reset dialog lifecycle refs and current saved attendee data.
+
+### Reopen follow-up concerns
+
+None.
