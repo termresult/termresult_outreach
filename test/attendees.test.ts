@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { filterAttendees, parseAttendeeQuery } from "@/lib/attendees/query";
-import { ATTENDEE_SEED_ROWS } from "@/lib/attendees/seed-data";
-import type { Attendee } from "@/types/attendee";
+import { ATTENDEE_SEED_ROWS, type SeedAttendee } from "@/lib/attendees/seed-data";
+import {
+  AttendeeError,
+  listAttendees,
+  updateAttendee,
+  upsertSeedAttendee,
+} from "@/lib/store/attendees";
+import { resetMemoryStore } from "@/lib/store/memory";
+import type { Attendee, AttendeeInput } from "@/types/attendee";
 
 function sample(over: Partial<Attendee> = {}): Attendee {
   return {
@@ -202,5 +209,148 @@ describe("ATTENDEE_SEED_ROWS", () => {
           !row.email?.includes("["),
       ),
     ).toBe(true);
+  });
+});
+
+function seed(over: Partial<SeedAttendee> = {}): SeedAttendee {
+  return {
+    id: "printed-1",
+    seed_sn: 1,
+    contact_name: "Jane Okoro",
+    school_name: "Bright Future Academy",
+    phone: "08031234567",
+    email: "jane@brightfuture.edu.ng",
+    status: "attended",
+    source_image: "IMG_6769.HEIC",
+    transcription_notes: null,
+    source_kind: "printed",
+    ...over,
+  };
+}
+
+describe("attendee store", () => {
+  afterEach(() => {
+    resetMemoryStore();
+  });
+
+  it("lists printed attendees by serial followed by handwritten attendees by school", async () => {
+    await upsertSeedAttendee(seed({ id: "printed-2", seed_sn: 2, school_name: "Second School" }));
+    await upsertSeedAttendee(seed({ id: "handwritten-z", seed_sn: null, school_name: "Zulu School", source_kind: "handwritten" }));
+    await upsertSeedAttendee(seed({ id: "printed-1", seed_sn: 1, school_name: "First School" }));
+    await upsertSeedAttendee(seed({ id: "handwritten-a", seed_sn: null, school_name: "Alpha School", source_kind: "handwritten" }));
+
+    expect((await listAttendees()).map((row) => row.id)).toEqual([
+      "printed-1",
+      "printed-2",
+      "handwritten-a",
+      "handwritten-z",
+    ]);
+  });
+
+  it("normalizes editable fields while preserving source metadata", async () => {
+    const original = (await upsertSeedAttendee(seed())).attendee;
+    const updated = await updateAttendee(
+      original.id,
+      {
+        contact_name: "  Ada Obi  ",
+        school_name: "  New School  ",
+        phone: "  0803 12  ",
+        email: "  ADA@EXAMPLE.COM  ",
+        status: "did_not_attend",
+        transcription_notes: "  checked from sheet  ",
+      },
+      "  Amina  ",
+    );
+
+    expect(updated).toMatchObject({
+      id: original.id,
+      seed_sn: original.seed_sn,
+      contact_name: "Ada Obi",
+      school_name: "New School",
+      phone: "0803 12",
+      email: "ada@example.com",
+      status: "did_not_attend",
+      source_image: original.source_image,
+      transcription_notes: "checked from sheet",
+      created_at: original.created_at,
+      updated_by: "Amina",
+    });
+    expect(updated.updated_at >= original.updated_at).toBe(true);
+  });
+
+  it("turns blank optional strings into null without inventing phone digits", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+    const updated = await updateAttendee(
+      attendee.id,
+      { contact_name: " ", phone: "  +234 80?  ", email: "", transcription_notes: " " },
+      "Amina",
+    );
+
+    expect(updated.contact_name).toBeNull();
+    expect(updated.phone).toBe("+234 80?");
+    expect(updated.email).toBeNull();
+    expect(updated.transcription_notes).toBeNull();
+  });
+
+  it("returns a status-bearing error for an unknown attendee", async () => {
+    await expect(updateAttendee("missing", { school_name: "School" }, "Amina")).rejects.toMatchObject({
+      message: "Attendee not found.",
+      status: 404,
+    });
+  });
+
+  it("rejects a missing school name", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+
+    await expect(updateAttendee(attendee.id, { school_name: "   " }, "Amina")).rejects.toMatchObject({
+      message: "School name is required.",
+      status: 400,
+    });
+    await expect(
+      updateAttendee(
+        attendee.id,
+        { school_name: null } as unknown as Partial<AttendeeInput>,
+        "Amina",
+      ),
+    ).rejects.toMatchObject({
+      message: "School name is required.",
+      status: 400,
+    });
+  });
+
+  it("rejects attendance statuses outside the exact supported values", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+    const input = { status: "Attended" } as unknown as Partial<AttendeeInput>;
+
+    await expect(updateAttendee(attendee.id, input, "Amina")).rejects.toMatchObject({
+      message: "Attendance status is invalid.",
+      status: 400,
+    });
+  });
+
+  it("requires an operator name for edits", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+
+    await expect(updateAttendee(attendee.id, { school_name: "School" }, " ")).rejects.toBeInstanceOf(
+      AttendeeError,
+    );
+  });
+
+  it("creates only missing seed IDs and preserves operator edits on reseed", async () => {
+    const first = await upsertSeedAttendee(seed());
+    await updateAttendee(
+      first.attendee.id,
+      { school_name: "Operator Corrected School", status: "did_not_attend" },
+      "Amina",
+    );
+
+    const second = await upsertSeedAttendee(
+      seed({ school_name: "Original Seed School", status: "attended" }),
+    );
+
+    expect(first.created).toBe(true);
+    expect(second.created).toBe(false);
+    expect(second.attendee.school_name).toBe("Operator Corrected School");
+    expect(second.attendee.status).toBe("did_not_attend");
   });
 });
