@@ -2,7 +2,7 @@
 
 ## Result
 
-Implemented the reviewed attendee seed dataset, integrity tests, and the Task 3-ready seed command. The seed contains every authoritative printed serial 1–104 exactly once and 14 unique fully handwritten records.
+Implemented the reviewed attendee seed dataset, integrity tests, and the Task 3-ready seed command. The seed contains every authoritative printed serial 1–104 exactly once and 17 unique fully handwritten records, for 121 total records: 64 attended and 57 did not attend.
 
 ## TDD Evidence
 
@@ -73,14 +73,14 @@ Observed result:
 
 ### Attendance status
 
-- Total: 118
-- Attended: 61
+- Total: 121
+- Attended: 64
 - Did not attend: 57
 
 ### Source kind
 
 - Printed source records: 104
-- Unique fully handwritten source records: 14
+- Unique fully handwritten source records: 17
 
 ### Primary source image
 
@@ -88,7 +88,7 @@ Observed result:
 - `IMG_6770.HEIC`: 36 (35 printed plus the handwritten Creme Quintessence entry)
 - `IMG_6771.HEIC`: 34
 - `IMG_6772.HEIC`: 10 unique handwritten records
-- `IMG_6773.HEIC`: 0 new records; photographic overlap of `IMG_6772`
+- `IMG_6773.HEIC`: 3 unique handwritten extension records; the photograph also overlaps `IMG_6772` in part
 - `IMG_6774.HEIC`: 3 unique handwritten records
 
 Secondary source images for merged handwriting are recorded in `transcription_notes`, while `source_image` remains the printed record's primary image.
@@ -99,7 +99,7 @@ Secondary source images for merged handwriting are recorded in `transcription_no
 - Merged handwritten De-Precious Trust Academy into printed serial 21.
 - Merged handwritten Unique School into printed serial 99.
 - Merged handwritten Divine Victorious Leaders Academy into printed serial 104.
-- Treated `IMG_6773` as a rotated/overlapping photograph of `IMG_6772`, not as additional entries.
+- Treated the overlapping portion of `IMG_6773` as photographic overlap with `IMG_6772`, while retaining its three unique extension rows as separate handwritten records.
 - Retained the handwritten Creme Quintessence row independently despite its handwritten “71” because printed serial 71 is a different school.
 
 ## Ambiguity Handling
