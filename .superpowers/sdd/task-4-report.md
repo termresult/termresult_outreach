@@ -158,3 +158,35 @@ None.
 ### Reopen follow-up concerns
 
 None.
+
+## Browser Follow-up: Strict Mode Effect Replay
+
+### Root cause and fix
+
+Browser verification in Next development mode showed React Strict Mode replaying the dialog effect as setup, cleanup, then setup. Cleanup correctly called the native `dialog.close()`, but the dialog's `onClose` callback treated that lifecycle close as a user dismissal and cleared parent editing state before the second setup.
+
+Removed the native `onClose` callback. Effect cleanup can now close the native dialog without changing parent state. Intentional dismissal remains unchanged: Escape is intercepted by `onCancel`, while Cancel, the close button, backdrop clicks, and successful saves all call the existing guarded `dismiss` function. The closing guard is not touched during effect cleanup and therefore cannot remain set across Strict Mode replay.
+
+### Verification
+
+- `pnpm test test/attendees*.test.ts`
+  - Exit 0.
+  - 3 attendee test files passed.
+  - 43 attendee tests passed.
+- `pnpm exec eslint src/app/attendees/attendees-board.tsx`
+  - Exit 0 with no findings.
+- `pnpm build`
+  - Exit 0.
+  - Next.js 16.3.1 compiled successfully and completed TypeScript.
+  - Route output includes `/attendees`.
+
+### Browser-root-cause self-review
+
+- Strict Mode cleanup only closes the native element and restores focus; it does not invoke either parent callback.
+- Strict Mode's second effect setup sees the still-mounted editor and calls `showModal()` again.
+- Every actual user close path still reaches `dismiss`, which closes, restores focus, and then clears parent state.
+- The change is limited to the reproduced native-close coupling.
+
+### Strict Mode follow-up concerns
+
+None.

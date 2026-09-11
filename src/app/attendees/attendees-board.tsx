@@ -486,7 +486,6 @@ function EditAttendeeDialog({
         event.preventDefault();
         if (!busy) dismiss();
       }}
-      onClose={() => dismiss()}
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) dismiss();
       }}
