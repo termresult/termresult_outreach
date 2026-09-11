@@ -1,0 +1,116 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getSessionUser } from "@/lib/auth/session";
+import { resetMemoryStore } from "@/lib/store/memory";
+import { upsertSeedAttendee } from "@/lib/store/attendees";
+import { PATCH } from "@/app/api/attendees/[id]/route";
+
+vi.mock("@/lib/auth/session", () => ({
+  getSessionUser: vi.fn(),
+}));
+
+const sessionUser = {
+  email: "operator@example.com",
+  uid: "operator-1",
+};
+
+function request(body: BodyInit): Request {
+  return new Request("http://localhost/api/attendees/printed-1", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body,
+  });
+}
+
+function context(id = "printed-1") {
+  return { params: Promise.resolve({ id }) };
+}
+
+async function expectJsonError(response: Response, status: number, error: string) {
+  expect(response.status).toBe(status);
+  expect(response.headers.get("content-type")).toContain("application/json");
+  await expect(response.json()).resolves.toEqual({ error });
+}
+
+describe("PATCH /api/attendees/:id", () => {
+  beforeEach(async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser);
+    await upsertSeedAttendee({
+      id: "printed-1",
+      seed_sn: 1,
+      contact_name: "Jane Okoro",
+      school_name: "Bright Future Academy",
+      phone: "08031234567",
+      email: "jane@example.com",
+      status: "attended",
+      source_image: "IMG_6769.HEIC",
+      transcription_notes: null,
+      source_kind: "printed",
+    });
+  });
+
+  afterEach(() => {
+    resetMemoryStore();
+    vi.clearAllMocks();
+  });
+
+  it("returns a plain 400 JSON error for malformed JSON", async () => {
+    const response = await PATCH(request("{"), context());
+
+    await expectJsonError(response, 400, "Request body must be valid JSON.");
+  });
+
+  it.each([
+    ["null", "null"],
+    ["an array", "[]"],
+    ["a string", JSON.stringify("invalid")],
+  ])("returns a plain 400 JSON error when the body is %s", async (_label, body) => {
+    const response = await PATCH(request(body), context());
+
+    await expectJsonError(response, 400, "Request body must be a JSON object.");
+  });
+
+  it.each([null, 42, {}, []])(
+    "returns a plain 400 JSON error for non-string operator_name %#",
+    async (operatorName) => {
+      const response = await PATCH(
+        request(JSON.stringify({ operator_name: operatorName })),
+        context(),
+      );
+
+      await expectJsonError(response, 400, "Operator name must be a string.");
+    },
+  );
+
+  it.each([
+    ["contact_name", 42, "Contact name must be a string or null."],
+    ["school_name", {}, "School name must be a string."],
+    ["phone", true, "Phone must be a string or null."],
+    ["email", [], "Email must be a string or null."],
+    ["status", 1, "Attendance status must be a string."],
+    ["transcription_notes", {}, "Transcription notes must be a string or null."],
+  ])("returns a plain 400 JSON error for non-string %s", async (field, value, error) => {
+    const response = await PATCH(
+      request(JSON.stringify({ operator_name: "Amina", [field]: value })),
+      context(),
+    );
+
+    await expectJsonError(response, 400, error);
+  });
+
+  it("maps authenticated attendee domain errors to JSON", async () => {
+    const response = await PATCH(
+      request(JSON.stringify({ operator_name: "Amina", school_name: "School" })),
+      context("missing"),
+    );
+
+    await expectJsonError(response, 404, "Attendee not found.");
+  });
+
+  it("authenticates before parsing the request body", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+
+    const response = await PATCH(request("{"), context());
+
+    await expectJsonError(response, 401, "Sign in first.");
+  });
+});

@@ -130,3 +130,89 @@ The Task 3 files and this report are committed together in the Task 3 implementa
 ## Concerns
 
 None.
+
+## Review Follow-up: PATCH Route Boundaries
+
+### Root cause
+
+The PATCH handler cast `request.json()` directly to the expected TypeScript shape before entering its domain-error boundary. Runtime JSON values therefore bypassed compile-time assumptions: malformed JSON leaked a `SyntaxError`, null leaked a property-access `TypeError`, and non-string fields reached string normalization methods and leaked `TypeError`.
+
+### RED
+
+Command:
+
+`pnpm test test/attendees-route.test.ts`
+
+Observed:
+
+- Exit code: 1
+- 1 test file failed
+- 16 tests ran: 2 passed and 14 failed
+- Malformed JSON leaked `SyntaxError: Expected property name or '}' in JSON at position 1`.
+- Null bodies leaked `TypeError: Cannot read properties of null (reading 'operator_name')`.
+- Non-string operator names leaked `TypeError: actor.trim is not a function`.
+- Non-string editable values leaked `TypeError: value?.trim is not a function` or produced inconsistent domain messages.
+- The already-valid authenticated 404 mapping and authenticate-before-parse behavior passed.
+
+### GREEN
+
+First focused GREEN command:
+
+`pnpm test test/attendees-route.test.ts`
+
+Observed:
+
+- Exit code: 0
+- 1 test file passed
+- 16 tests passed
+
+Final focused command:
+
+`pnpm test test/attendees-route.test.ts test/attendees.test.ts`
+
+Observed:
+
+- Exit code: 0
+- 2 test files passed
+- 36 tests passed
+
+Final full command:
+
+`pnpm test`
+
+Observed:
+
+- Exit code: 0
+- 10 test files passed
+- 73 tests passed
+
+Lint command:
+
+`pnpm exec eslint test/attendees-route.test.ts src/lib/attendees/update-input.ts 'src/app/api/attendees/[id]/route.ts'`
+
+Observed:
+
+- Exit code: 0
+- No lint findings
+
+Build command:
+
+`pnpm build`
+
+Observed:
+
+- Exit code: 0
+- Next.js 16.3.1 compiled successfully.
+- TypeScript completed successfully.
+- The route manifest includes `/api/attendees/[id]`.
+
+### Review changes
+
+- Added `test/attendees-route.test.ts` with direct PATCH boundary coverage for malformed JSON, null and non-object bodies, non-string operator names, every editable field's runtime shape, authenticated domain-error mapping, and authentication before body parsing.
+- Added `src/lib/attendees/update-input.ts`, a dependency-free runtime parser that returns the existing store input and actor contracts or throws status-bearing attendee domain errors.
+- Updated `src/app/api/attendees/[id]/route.ts` to catch JSON decoding failures and map all parser and store domain errors to consistent plain JSON responses.
+- Preserved `listAttendees`, `updateAttendee`, and `upsertSeedAttendee` contracts unchanged.
+
+### Follow-up concerns
+
+None.
