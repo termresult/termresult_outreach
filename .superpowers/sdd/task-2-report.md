@@ -1,0 +1,134 @@
+# Task 2 Report: Reviewed Attendee Seed
+
+## Result
+
+Implemented the reviewed attendee seed dataset, integrity tests, and the Task 3-ready seed command. The seed contains every authoritative printed serial 1–104 exactly once and 14 unique fully handwritten records.
+
+## TDD Evidence
+
+### RED
+
+Command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed result:
+
+- Exit code: 1
+- Failed suite: `test/attendees.test.ts`
+- Failure: `Cannot find module '@/lib/attendees/seed-data'`
+- This was the expected failure because the seed module had not yet been implemented.
+
+### GREEN
+
+Focused command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed result:
+
+- Exit code: 0
+- 1 test file passed
+- 9 tests passed at the first GREEN run
+- After adding reviewed count locks, the attendee file passes 10 tests.
+
+Full regression command:
+
+`pnpm test`
+
+Observed result:
+
+- Exit code: 0
+- 9 test files passed
+- 47 tests passed
+
+Lint command:
+
+`pnpm exec eslint test/attendees.test.ts src/lib/attendees/seed-data.ts src/scripts/seed-attendees.ts`
+
+Observed result:
+
+- Exit code: 0
+- No lint findings
+
+`git diff --check` also passed with no whitespace errors. IDE diagnostics reported no errors in the changed TypeScript files.
+
+## Files
+
+- Created `src/lib/attendees/seed-data.ts`
+  - Defines `SeedAttendee`.
+  - Exports `ATTENDEE_SEED_ROWS`.
+  - Builds printed rows from the authoritative `REGISTRATION_ROWS`.
+  - Adds reviewed handwritten records and transcription notes.
+- Created `src/scripts/seed-attendees.ts`
+  - Loads `.env.local`.
+  - Calls the Task 3 contract `upsertSeedAttendee(row)`.
+  - Reports created and preserved-existing totals.
+- Modified `package.json`
+  - Added `seed:attendees`.
+- Modified `test/attendees.test.ts`
+  - Added unique ID, school name, source image, status, handwritten attendance, printed serial coverage, and reviewed total checks.
+
+## Data Counts
+
+### Attendance status
+
+- Total: 118
+- Attended: 61
+- Did not attend: 57
+
+### Source kind
+
+- Printed source records: 104
+- Unique fully handwritten source records: 14
+
+### Primary source image
+
+- `IMG_6769.HEIC`: 35
+- `IMG_6770.HEIC`: 36 (35 printed plus the handwritten Creme Quintessence entry)
+- `IMG_6771.HEIC`: 34
+- `IMG_6772.HEIC`: 10 unique handwritten records
+- `IMG_6773.HEIC`: 0 new records; photographic overlap of `IMG_6772`
+- `IMG_6774.HEIC`: 3 unique handwritten records
+
+Secondary source images for merged handwriting are recorded in `transcription_notes`, while `source_image` remains the printed record's primary image.
+
+## Merge and Overlap Decisions
+
+- Merged handwritten Gracious Grace School into printed serial 1.
+- Merged handwritten De-Precious Trust Academy into printed serial 21.
+- Merged handwritten Unique School into printed serial 99.
+- Merged handwritten Divine Victorious Leaders Academy into printed serial 104.
+- Treated `IMG_6773` as a rotated/overlapping photograph of `IMG_6772`, not as additional entries.
+- Retained the handwritten Creme Quintessence row independently despite its handwritten “71” because printed serial 71 is a different school.
+
+## Ambiguity Handling
+
+- No `[unclear: ...]` marker is stored in a phone or email field.
+- Complete printed phones remain the primary phone for printed records.
+- Clear handwritten contacts are used where available.
+- Cropped email endings, uncertain local parts, overwritten contacts, invalid-length phone text, and alternate addresses are retained in `transcription_notes`.
+- Ambiguous values are `null` when storing a partial string would create a fake contact value.
+- The Terrigem Royal contact name and contacts remain null because the writing is overwritten; trustworthy fragments are preserved in notes.
+- The Meganiel Academy phone is null because the visible number has only ten digits; the visible text is preserved in notes.
+- Additional clear/partial details on merged schools are preserved in the printed record's notes.
+
+## Self-review
+
+- Confirmed serials 1–104 are ordered and represented exactly once.
+- Confirmed all IDs are stable and unique.
+- Confirmed every fully handwritten source record is attended.
+- Confirmed both attendance statuses are present and count-locked.
+- Confirmed all school names are non-empty.
+- Confirmed the authoritative registration list supplies all printed names, schools, and phones.
+- Confirmed the original untracked HEIC scans were not modified or staged.
+- Confirmed the seed script does not create a persistence implementation parallel to Task 3.
+
+## Commit
+
+All Task 2 code, tests, package command, and this report are committed together in the Task 2 implementation commit. The final commit hash is returned with the task result.
+
+## Concerns
+
+- The seed command intentionally cannot execute until Task 3 provides `src/lib/store/attendees.ts` with `upsertSeedAttendee(row)`. This is the explicit integration seam requested by the brief.
+- Several source contacts remain uncertain due to cropping or overwritten handwriting; those cases are preserved in `transcription_notes` rather than guessed.

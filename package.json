@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "tsx src/scripts/seed-dummy.ts",
+    "seed:attendees": "tsx src/scripts/seed-attendees.ts",
     "seed:proprietors": "tsx src/scripts/seed-proprietors.ts",
     "import:fct": "tsx src/scripts/import-fct.ts"
   },

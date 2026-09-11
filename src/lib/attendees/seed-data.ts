@@ -1,0 +1,270 @@
+import { REGISTRATION_ROWS } from "@/lib/proprietors/registration-list";
+import { toE164Ng } from "@/lib/phones/e164";
+import type { AttendanceStatus } from "@/types/attendee";
+
+export type SeedAttendee = {
+  id: string;
+  seed_sn: number | null;
+  contact_name: string | null;
+  school_name: string;
+  phone: string | null;
+  email: string | null;
+  status: AttendanceStatus;
+  source_image: string;
+  transcription_notes: string | null;
+  source_kind: "printed" | "handwritten";
+};
+
+const ATTENDED_PRINTED_SERIALS = new Set([
+  1, 6, 7, 12, 13, 14, 15, 20, 21, 23, 24, 25, 27, 29, 30, 33, 34, 35, 37,
+  38, 39, 43, 45, 46, 48, 49, 50, 57, 62, 63, 65, 67, 68, 72, 73, 74, 82,
+  83, 88, 94, 95, 97, 98, 99, 102, 103, 104,
+]);
+
+const PRINTED_EMAILS: Record<number, string> = {
+  1: "graciousgraceschooltasha1@gmail.com",
+  7: "edh54@gmail.com",
+  14: "abimbolaayoojeifo@gmail.com",
+  20: "estheremeka437@gmail.com",
+  27: "obiblessing610@gmail.com",
+  29: "Briska@yahoo.com",
+  35: "NwankwoPromise2099@gmail.com",
+  37: "hopeuzoigwe53@gmail.com",
+  68: "faithoasis@gmail.com",
+  72: "preciouskidsltd@gmail.com",
+  73: "olastar1769@gmail.com",
+  74: "prizedlearnersmce@gmail.com",
+  82: "lakunle1966@gmail.com",
+  83: "solaowolana@gmail.com",
+  88: "helenukpong@gmail.com",
+  98: "casmirschool81@gmail.com",
+  102: "profeleboy@gmail.com",
+  103: "mattiks2002@gmail.com",
+};
+
+const PRINTED_NOTES: Record<number, string> = {
+  1: "Merged handwritten Gracious Grace School entry from IMG_6774. Handwritten contact: Nkiruka Abba.",
+  6: "Cropped handwritten email: amagailsna[unclear: dy/by]@gmail.[unclear: com/co].",
+  7: "Primary email uses the fully legible second address. Additional cropped address: patedemhogan@gmail.[unclear ending]. Blue check mark present.",
+  12: "Cropped/ambiguous handwritten text resembles “Battholomew Jacenta@gmail.[unclear ending]”; not stored as email.",
+  13: "Cropped handwritten email fragment ending “eifo@gmail.com”; incomplete local part.",
+  15: "Cropped handwritten email resembles “theresat…amosun@[domain not visible]”.",
+  21: "Merged handwritten De-Precious Trust Academy entry from IMG_6772. Contact written as Engr (Mrs) Agbo Precious; phone and email are cropped/ambiguous.",
+  23: "Handwritten email local part reads dorothyushie; domain ending is cropped.",
+  24: "Handwritten email local part reads adhekegbaamonday; domain ending is cropped.",
+  25: "Handwritten contact text reads “saraya gana7@gmail.com” with an apparent space; retained here rather than storing an invalid email.",
+  30: "Handwritten email reads Fedlandschools@gmail with the domain ending cropped.",
+  33: "Ambiguous handwritten email resembles olo4[jjj/sss]@gmail.com.",
+  34: "Ambiguous handwritten email resembles Rhiyasarwar/Rhiyasanwar751; domain is unclear.",
+  38: "Handwriting crosses grid boundaries. Cropped text resembles greaterseedsrichmaris…com; blue check mark present.",
+  39: "Handwriting crosses grid boundaries. Email local part reads greenpearlsclassicschool; domain is cropped. Blue check mark present.",
+  43: "Blue-biro annotation reads “- alabigibike”; attendance inferred from handwriting.",
+  45: "Handwritten email reads horsegateacade@gmail with the domain ending cropped.",
+  46: "Handwritten email reads joymonday1984@gmail with the domain ending cropped.",
+  48: "Handwritten email reads osita.duke@gmail with the domain ending cropped.",
+  49: "Cropped/ambiguous handwritten email resembles kenechukwuchidi9604@gmail.",
+  50: "Ambiguous handwritten email resembles blaonah16/blessing…@gmail.com.",
+  57: "Handwritten email reads maplehillpremiereacademy@gmail with the domain ending cropped.",
+  62: "Ambiguous handwritten email resembles MsgsKaba/MsqsKaba@gmail.com.",
+  63: "Handwritten email reads mustardseedabuja@yahoo with the domain ending cropped; blue check mark present.",
+  65: "Handwritten email reads noblehonouracademy@gmail with the domain ending cropped.",
+  67: "Handwritten email reads ishaq.alhassan2@gmail with the domain ending cropped.",
+  68: "Additional blue-biro annotation: “- info”.",
+  94: "Cropped handwritten email begins thegoldencrestroyalacademy; the remainder is outside the photographed edge.",
+  95: "Cropped handwritten email has only the uncertain fragment “ble…hn71@gmail.com”.",
+  97: "Cropped handwritten email begins admin@tots-academyabuja; ending is unavailable. Additional contact text is crossed out.",
+  99: "Merged handwritten Unique School entry from IMG_6774. Contact name and phone are partly cropped; email appears to be xidellisy@gmail.com.",
+  104: "Merged handwritten Divine Victorious Leaders Academy entry from IMG_6772. Contact written as Mrs Nwosu Hope; handwritten phone matches the printed number. Cropped email begins divlead and ends @gmail.com.",
+};
+
+function printedSourceImage(sn: number): string {
+  if (sn <= 35) return "IMG_6769.HEIC";
+  if (sn <= 70) return "IMG_6770.HEIC";
+  return "IMG_6771.HEIC";
+}
+
+const printedRows: SeedAttendee[] = REGISTRATION_ROWS.map((row) => ({
+  id: `reg-${row.sn}`,
+  seed_sn: row.sn,
+  contact_name: row.proprietor_name.trim() || null,
+  school_name: row.school_name,
+  phone: toE164Ng(row.phone),
+  email: PRINTED_EMAILS[row.sn] ?? null,
+  status: ATTENDED_PRINTED_SERIALS.has(row.sn) ? "attended" : "did_not_attend",
+  source_image: printedSourceImage(row.sn),
+  transcription_notes: PRINTED_NOTES[row.sn] ?? null,
+  source_kind: "printed",
+}));
+
+const handwrittenRows: SeedAttendee[] = [
+  {
+    id: "handwritten-creme-quintessence",
+    seed_sn: null,
+    contact_name: "Adeleye Feyisayo",
+    school_name: "Creme Quintessence School Lokogoma",
+    phone: toE164Ng("08034885187"),
+    email: null,
+    status: "attended",
+    source_image: "IMG_6770.HEIC",
+    transcription_notes: "Fully handwritten addition numbered 71. Email visibly ends at adeleyeruthfeyisayo@gmail; no suffix inferred.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-foundation-of-success",
+    seed_sn: null,
+    contact_name: "Shuaibu Adamu",
+    school_name: "Foundation of Success Nursery & Primary School",
+    phone: null,
+    email: null,
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Handwritten email has an unclear middle sequence and is not stored as a primary email.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-lofty-height",
+    seed_sn: null,
+    contact_name: "Engo Dorcas",
+    school_name: "Lofty Height, Pegi Kuje",
+    phone: null,
+    email: "dorenye3@gmail.com",
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: null,
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-excellent-mindset",
+    seed_sn: null,
+    contact_name: "Bamidele Bukola",
+    school_name: "Excellent Mindset Montessori Int'l School, Apo",
+    phone: toE164Ng("09062665071"),
+    email: null,
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Phone is legible but cramped across a column boundary. Email resembles bukolabamidele1940@gmail.com but remains ambiguous.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-terrigem-royal",
+    seed_sn: null,
+    contact_name: null,
+    school_name: "Terrigem Royal, Jahi",
+    phone: null,
+    email: null,
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Name may be Tessy Ijeoma or Tessy Gertrona. Phone and email are heavily overwritten; only phone ending 2586 is trustworthy.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-winners-joy",
+    seed_sn: null,
+    contact_name: "Mrs Rosemary Onyenasubo",
+    school_name: "The Winners Joy Int'l Academy",
+    phone: toE164Ng("07037108451"),
+    email: "pinose2018@gmail.com",
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: null,
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-chessy-kidies",
+    seed_sn: null,
+    contact_name: "Harrison",
+    school_name: "Chessy Kidies Academy",
+    phone: toE164Ng("09060096303"),
+    email: null,
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Email appears to be harrison-kyle404@gmail.com but character shapes are not fully certain.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-first-choice-model",
+    seed_sn: null,
+    contact_name: "Lucy Amaefule",
+    school_name: "First Choice Model Academy",
+    phone: toE164Ng("08028672447"),
+    email: "FirstchoiceSch@gmail.com",
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: null,
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-victory-of-god",
+    seed_sn: null,
+    contact_name: "Mr. Daniel D. Damladi",
+    school_name: "Victory of God Int'l Academy, Wanu Apo",
+    phone: null,
+    email: "indeedone6@gmail.com",
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Additional cropped contact fragment ends “29@gmail”.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-advanced-proficiency",
+    seed_sn: null,
+    contact_name: "Ogbonaya Veronica",
+    school_name: "Advanced Proficiency International School, Apo",
+    phone: toE164Ng("08036318502"),
+    email: "ogbonayaveronica14@gmail.com",
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Blue-biro annotation: VIP.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-triple-divine",
+    seed_sn: null,
+    contact_name: null,
+    school_name: "Triple Divine Int'l School",
+    phone: null,
+    email: null,
+    status: "attended",
+    source_image: "IMG_6772.HEIC",
+    transcription_notes: "Only the school name and a dash were written; no contact details supplied.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-purple-lilly",
+    seed_sn: null,
+    contact_name: "Adeniran Deborah",
+    school_name: "Purple Lilly Int'l Academy",
+    phone: toE164Ng("08027866697"),
+    email: "purplelillyschool68@gmail.com",
+    status: "attended",
+    source_image: "IMG_6774.HEIC",
+    transcription_notes: null,
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-jeika-premier",
+    seed_sn: null,
+    contact_name: "Praise Abraham",
+    school_name: "Jeika Premier Academy",
+    phone: toE164Ng("08035935535"),
+    email: "jeikapremieracadem@gmail.com",
+    status: "attended",
+    source_image: "IMG_6774.HEIC",
+    transcription_notes: "Email is written with “academ” rather than “academy”.",
+    source_kind: "handwritten",
+  },
+  {
+    id: "handwritten-meganiel-academy",
+    seed_sn: null,
+    contact_name: "Amen Gwazah",
+    school_name: "Meganiel Academy",
+    phone: null,
+    email: "meganielacademy@gmail.com",
+    status: "attended",
+    source_image: "IMG_6774.HEIC",
+    transcription_notes: "Handwritten phone appears as 0703220082 (ten digits), so it is retained here but not stored as a phone value.",
+    source_kind: "handwritten",
+  },
+];
+
+export const ATTENDEE_SEED_ROWS: SeedAttendee[] = [...printedRows, ...handwrittenRows];
