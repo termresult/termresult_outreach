@@ -15,6 +15,7 @@ import {
   X,
   NotebookPen,
   CalendarDays,
+  ClipboardCheck,
 } from "lucide-react";
 import { BRAND, hexToRgba } from "@/lib/color";
 
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/proprietors", label: "Proprietors", icon: NotebookPen },
   { href: "/proprietors/calendar", label: "Install calendar", icon: CalendarDays },
+  { href: "/attendees", label: "Attendees", icon: ClipboardCheck },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
@@ -44,7 +46,7 @@ function NavLinks({
             ? pathname === "/"
             : item.href === "/proprietors"
               ? pathname === "/proprietors"
-              : pathname.startsWith(item.href);
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
         return (
           <Link
