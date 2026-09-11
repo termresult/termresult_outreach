@@ -65,3 +65,63 @@ Committed with subject `feat: add editable attendee page`. The final commit hash
 
 - Full-project lint does not currently exit cleanly because of the pre-existing findings listed above. They were left untouched to avoid mixing unrelated proprietor/store cleanup into Task 4.
 - An authenticated browser session was not available for an interactive visual smoke test. The production build and TypeScript validation completed successfully.
+
+## Review Follow-up: Dialog and Save Reliability
+
+### Changes
+
+- Consolidated Escape, Cancel, close-button, backdrop, native-close, and successful-save handling through one dialog dismissal function.
+- The dismissal function closes the native dialog and restores focus to the exact edit trigger before updating parent state and unmounting.
+- Added unmount cleanup that aborts an in-flight PATCH, closes an unexpectedly open dialog, and restores focus as a fallback.
+- Guarded asynchronous state updates with mounted/closing state so successful dismissal and navigation cannot cause post-unmount updates.
+- Made saved-operator reads and writes best-effort. A blocked or throwing `localStorage` now falls back to an empty operator selection, and a storage write failure cannot turn a completed PATCH into an error or leave the row stale.
+- Extracted attendee PATCH response decoding and failure selection into `src/lib/attendees/client-response.ts`.
+- Non-JSON HTTP failures now display `The server could not save attendee details.`; only an actual fetch failure displays the connectivity message.
+- Added `test/attendees-client.test.ts` for preserved JSON API errors, non-JSON server failures, and malformed successful responses.
+
+### TDD evidence
+
+RED command:
+
+`pnpm test test/attendees-client.test.ts`
+
+Observed:
+
+- Exit 1.
+- The suite failed because `@/lib/attendees/client-response` did not exist.
+
+Focused GREEN command:
+
+`pnpm test test/attendees-client.test.ts`
+
+Observed:
+
+- Exit 0.
+- 1 test file passed.
+- 3 tests passed.
+
+### Final verification
+
+- `pnpm test test/attendees*.test.ts`
+  - Exit 0.
+  - 3 attendee test files passed.
+  - 39 attendee tests passed.
+- `pnpm exec eslint src/app/attendees/attendees-board.tsx src/lib/attendees/client-response.ts test/attendees-client.test.ts`
+  - Exit 0 with no findings.
+- `pnpm build`
+  - Exit 0.
+  - Next.js 16.3.1 compiled successfully and completed TypeScript.
+  - Route output includes `/attendees`, `/api/attendees`, and `/api/attendees/[id]`.
+
+### Follow-up self-review
+
+- Normal dismissal closes the browser modal and restores trigger focus before parent state removes the dialog.
+- Cleanup repeats those operations only as a fallback and aborts any outstanding request.
+- Every user dismissal route reaches the same guarded function; pending controls remain disabled as before.
+- Successful PATCH handling records the returned attendee locally even when browser storage is unavailable.
+- HTTP response decoding cannot fall through to the network-error message.
+- The attendee UI and PATCH request/response contract remain unchanged.
+
+### Follow-up concerns
+
+None.

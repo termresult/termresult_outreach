@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { EmptyState, StatCard } from "@/components/ui/ds";
 import { FormSelect } from "@/components/ui/form-select";
+import {
+  attendeePatchFailure,
+  decodeAttendeePatchResponse,
+} from "@/lib/attendees/client-response";
 import { filterAttendees, type AttendeeQuery } from "@/lib/attendees/query";
 import { BRAND, hexToRgba } from "@/lib/color";
 import {
@@ -30,6 +34,11 @@ type Totals = {
   all: number;
   attended: number;
   didNotAttend: number;
+};
+
+type EditingState = {
+  attendee: Attendee;
+  trigger: HTMLButtonElement;
 };
 
 type FormState = {
@@ -79,7 +88,14 @@ export function AttendeesBoard({
 }) {
   const [rows, setRows] = useState(initialRows);
   const [totals, setTotals] = useState(initialTotals);
-  const [editing, setEditing] = useState<Attendee | null>(null);
+  const [editing, setEditing] = useState<EditingState | null>(null);
+
+  function openEditor(
+    attendee: Attendee,
+    trigger: HTMLButtonElement,
+  ) {
+    setEditing({ attendee, trigger });
+  }
 
   function applySaved(attendee: Attendee, previousStatus: AttendanceStatus) {
     setRows((current) => {
@@ -98,7 +114,6 @@ export function AttendeesBoard({
           (attendee.status === "did_not_attend" ? 1 : -1),
       }));
     }
-    setEditing(null);
   }
 
   return (
@@ -215,7 +230,7 @@ export function AttendeesBoard({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setEditing(row)}
+                  onClick={(event) => openEditor(row, event.currentTarget)}
                   className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm"
                   aria-label={`Edit ${row.school_name}`}
                 >
@@ -271,7 +286,7 @@ export function AttendeesBoard({
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => setEditing(row)}
+                        onClick={(event) => openEditor(row, event.currentTarget)}
                         className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
                         aria-label={`Edit ${row.school_name}`}
                       >
@@ -289,10 +304,11 @@ export function AttendeesBoard({
 
       {editing ? (
         <EditAttendeeDialog
-          key={editing.id}
-          attendee={editing}
+          key={editing.attendee.id}
+          attendee={editing.attendee}
+          returnFocusTo={editing.trigger}
           onClose={() => setEditing(null)}
-          onSaved={(saved) => applySaved(saved, editing.status)}
+          onSaved={(saved) => applySaved(saved, editing.attendee.status)}
         />
       ) : null}
     </div>
@@ -352,29 +368,69 @@ function VerificationNote({
   );
 }
 
+function readSavedOperator(): string {
+  try {
+    const saved = window.localStorage.getItem(OPERATOR_STORAGE_KEY) ?? "";
+    return (OPERATOR_NAMES as readonly string[]).includes(saved) ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberOperator(operator: string): void {
+  try {
+    window.localStorage.setItem(OPERATOR_STORAGE_KEY, operator);
+  } catch {
+    // Saving the attendee succeeded; browser storage is only a convenience.
+  }
+}
+
 function EditAttendeeDialog({
   attendee,
+  returnFocusTo,
   onClose,
   onSaved,
 }: {
   attendee: Attendee;
+  returnFocusTo: HTMLButtonElement | null;
   onClose: () => void;
   onSaved: (attendee: Attendee) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const mountedRef = useRef(false);
+  const closingRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
   const titleId = useId();
   const descriptionId = useId();
   const [form, setForm] = useState(() => formFromRow(attendee));
-  const [operator, setOperator] = useState(() => {
-    const saved = window.localStorage.getItem(OPERATOR_STORAGE_KEY) ?? "";
-    return (OPERATOR_NAMES as readonly string[]).includes(saved) ? saved : "";
-  });
+  const [operator, setOperator] = useState(readSavedOperator);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
+    mountedRef.current = true;
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+
+    return () => {
+      mountedRef.current = false;
+      requestRef.current?.abort();
+      if (dialog?.open) dialog.close();
+      returnFocusTo?.focus();
+    };
+  }, [returnFocusTo]);
+
+  function dismiss(saved?: Attendee) {
+    if (closingRef.current) return;
+    closingRef.current = true;
+
+    const dialog = dialogRef.current;
+    if (dialog?.open) dialog.close();
+    returnFocusTo?.focus();
+
+    if (saved) onSaved(saved);
+    else onClose();
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -385,6 +441,8 @@ function EditAttendeeDialog({
 
     setBusy(true);
     setError(null);
+    const controller = new AbortController();
+    requestRef.current = controller;
     try {
       const response = await fetch(
         `/api/attendees/${encodeURIComponent(attendee.id)}`,
@@ -395,22 +453,26 @@ function EditAttendeeDialog({
             ...attendeeInput(form),
             operator_name: operator,
           }),
+          signal: controller.signal,
         },
       );
-      const data = (await response.json()) as {
-        attendee?: Attendee;
-        error?: string;
-      };
-      if (!response.ok || !data.attendee) {
-        setError(data.error ?? "Could not save attendee details.");
+      const payload = await decodeAttendeePatchResponse(response);
+      if (!mountedRef.current) return;
+
+      const failure = attendeePatchFailure(response.ok, payload);
+      if (failure) {
+        setError(failure);
         return;
       }
-      window.localStorage.setItem(OPERATOR_STORAGE_KEY, operator);
-      onSaved(data.attendee);
+      rememberOperator(operator);
+      dismiss(payload!.attendee!);
     } catch {
-      setError("Could not reach the server. Try again.");
+      if (mountedRef.current) {
+        setError("Could not reach the server. Try again.");
+      }
     } finally {
-      setBusy(false);
+      requestRef.current = null;
+      if (mountedRef.current && !closingRef.current) setBusy(false);
     }
   }
 
@@ -421,7 +483,11 @@ function EditAttendeeDialog({
       aria-describedby={descriptionId}
       onCancel={(event) => {
         event.preventDefault();
-        if (!busy) onClose();
+        if (!busy) dismiss();
+      }}
+      onClose={() => dismiss()}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) dismiss();
       }}
       className="fixed inset-0 m-0 ml-auto h-full max-h-none w-full max-w-lg overflow-hidden border-0 bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)] backdrop:bg-slate-900/20"
     >
@@ -440,7 +506,7 @@ function EditAttendeeDialog({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => dismiss()}
             disabled={busy}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 disabled:opacity-50"
           >
@@ -544,7 +610,7 @@ function EditAttendeeDialog({
         <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => dismiss()}
             disabled={busy}
             className="h-11 flex-1 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm disabled:opacity-50"
           >
