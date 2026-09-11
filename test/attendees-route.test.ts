@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSessionUser } from "@/lib/auth/session";
+import { ATTENDEE_SEED_ROWS } from "@/lib/attendees/seed-data";
 import { resetMemoryStore } from "@/lib/store/memory";
-import { upsertSeedAttendee } from "@/lib/store/attendees";
+import { updateAttendee, upsertSeedAttendee } from "@/lib/store/attendees";
+import { GET } from "@/app/api/attendees/route";
 import { PATCH } from "@/app/api/attendees/[id]/route";
 
 vi.mock("@/lib/auth/session", () => ({
@@ -30,6 +32,50 @@ async function expectJsonError(response: Response, status: number, error: string
   expect(response.headers.get("content-type")).toContain("application/json");
   await expect(response.json()).resolves.toEqual({ error });
 }
+
+describe("GET /api/attendees", () => {
+  beforeEach(() => {
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser);
+  });
+
+  afterEach(() => {
+    resetMemoryStore();
+    vi.clearAllMocks();
+  });
+
+  it("returns the complete seed baseline for an authenticated fresh install", async () => {
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.attendees).toHaveLength(121);
+    expect(payload.attendees.map((row: { id: string }) => row.id)).toEqual(
+      expect.arrayContaining(ATTENDEE_SEED_ROWS.map((row) => row.id)),
+    );
+  });
+
+  it("overlays persisted edits without dropping unpersisted baseline attendees", async () => {
+    const baseline = ATTENDEE_SEED_ROWS[0];
+    await updateAttendee(
+      baseline.id,
+      { school_name: "API Corrected School", status: "did_not_attend" },
+      "Iyanu",
+    );
+
+    const response = await GET();
+    const payload = await response.json();
+    const corrected = payload.attendees.find(
+      (row: { id: string }) => row.id === baseline.id,
+    );
+
+    expect(payload.attendees).toHaveLength(121);
+    expect(corrected).toMatchObject({
+      school_name: "API Corrected School",
+      status: "did_not_attend",
+      updated_by: "Iyanu",
+    });
+  });
+});
 
 describe("PATCH /api/attendees/:id", () => {
   beforeEach(async () => {
@@ -81,6 +127,22 @@ describe("PATCH /api/attendees/:id", () => {
     },
   );
 
+  it.each(["Mallory", "iyanu", " Iyanu "])(
+    "rejects non-approved operator name %j",
+    async (operatorName) => {
+      const response = await PATCH(
+        request(JSON.stringify({ operator_name: operatorName })),
+        context(),
+      );
+
+      await expectJsonError(
+        response,
+        400,
+        "Operator name must be one of: Iyanu, Possible, Abdul, Pelumi.",
+      );
+    },
+  );
+
   it.each([
     ["contact_name", 42, "Contact name must be a string or null."],
     ["school_name", {}, "School name must be a string."],
@@ -90,7 +152,7 @@ describe("PATCH /api/attendees/:id", () => {
     ["transcription_notes", {}, "Transcription notes must be a string or null."],
   ])("returns a plain 400 JSON error for non-string %s", async (field, value, error) => {
     const response = await PATCH(
-      request(JSON.stringify({ operator_name: "Amina", [field]: value })),
+      request(JSON.stringify({ operator_name: "Iyanu", [field]: value })),
       context(),
     );
 
@@ -99,7 +161,7 @@ describe("PATCH /api/attendees/:id", () => {
 
   it("maps authenticated attendee domain errors to JSON", async () => {
     const response = await PATCH(
-      request(JSON.stringify({ operator_name: "Amina", school_name: "School" })),
+      request(JSON.stringify({ operator_name: "Iyanu", school_name: "School" })),
       context("missing"),
     );
 

@@ -260,7 +260,7 @@ describe("attendee store", () => {
         status: "did_not_attend",
         transcription_notes: "  checked from sheet  ",
       },
-      "  Amina  ",
+      "Iyanu",
     );
 
     expect(updated).toMatchObject({
@@ -274,7 +274,7 @@ describe("attendee store", () => {
       source_image: original.source_image,
       transcription_notes: "checked from sheet",
       created_at: original.created_at,
-      updated_by: "Amina",
+      updated_by: "Iyanu",
     });
     expect(updated.updated_at >= original.updated_at).toBe(true);
   });
@@ -284,7 +284,7 @@ describe("attendee store", () => {
     const updated = await updateAttendee(
       attendee.id,
       { contact_name: " ", phone: "  +234 80?  ", email: "", transcription_notes: " " },
-      "Amina",
+      "Iyanu",
     );
 
     expect(updated.contact_name).toBeNull();
@@ -294,7 +294,7 @@ describe("attendee store", () => {
   });
 
   it("returns a status-bearing error for an unknown attendee", async () => {
-    await expect(updateAttendee("missing", { school_name: "School" }, "Amina")).rejects.toMatchObject({
+    await expect(updateAttendee("missing", { school_name: "School" }, "Iyanu")).rejects.toMatchObject({
       message: "Attendee not found.",
       status: 404,
     });
@@ -303,7 +303,7 @@ describe("attendee store", () => {
   it("rejects a missing school name", async () => {
     const { attendee } = await upsertSeedAttendee(seed());
 
-    await expect(updateAttendee(attendee.id, { school_name: "   " }, "Amina")).rejects.toMatchObject({
+    await expect(updateAttendee(attendee.id, { school_name: "   " }, "Iyanu")).rejects.toMatchObject({
       message: "School name is required.",
       status: 400,
     });
@@ -311,7 +311,7 @@ describe("attendee store", () => {
       updateAttendee(
         attendee.id,
         { school_name: null } as unknown as Partial<AttendeeInput>,
-        "Amina",
+        "Iyanu",
       ),
     ).rejects.toMatchObject({
       message: "School name is required.",
@@ -323,7 +323,7 @@ describe("attendee store", () => {
     const { attendee } = await upsertSeedAttendee(seed());
     const input = { status: "Attended" } as unknown as Partial<AttendeeInput>;
 
-    await expect(updateAttendee(attendee.id, input, "Amina")).rejects.toMatchObject({
+    await expect(updateAttendee(attendee.id, input, "Iyanu")).rejects.toMatchObject({
       message: "Attendance status is invalid.",
       status: 400,
     });
@@ -337,12 +337,26 @@ describe("attendee store", () => {
     );
   });
 
+  it.each(["Mallory", "iyanu", " Iyanu "])(
+    "rejects non-approved operator name %j at the store boundary",
+    async (operatorName) => {
+      const { attendee } = await upsertSeedAttendee(seed());
+
+      await expect(
+        updateAttendee(attendee.id, { school_name: "School" }, operatorName),
+      ).rejects.toMatchObject({
+        message: "Operator name must be one of: Iyanu, Possible, Abdul, Pelumi.",
+        status: 400,
+      });
+    },
+  );
+
   it("creates only missing seed IDs and preserves operator edits on reseed", async () => {
     const first = await upsertSeedAttendee(seed());
     await updateAttendee(
       first.attendee.id,
       { school_name: "Operator Corrected School", status: "did_not_attend" },
-      "Amina",
+      "Iyanu",
     );
 
     const second = await upsertSeedAttendee(
@@ -371,7 +385,7 @@ describe("attendee store", () => {
     await updateAttendee(
       baseline.id,
       { school_name: "Operator Corrected School", status: "did_not_attend" },
-      "Amina",
+      "Iyanu",
     );
 
     const attendees = await listAttendeesWithSeedBaseline();
@@ -381,7 +395,7 @@ describe("attendee store", () => {
     expect(corrected).toMatchObject({
       school_name: "Operator Corrected School",
       status: "did_not_attend",
-      updated_by: "Amina",
+      updated_by: "Iyanu",
     });
   });
 
@@ -409,7 +423,7 @@ describe("attendee store", () => {
     const updated = await updateAttendee(
       baseline.id,
       { school_name: "Edited Before Seed Command" },
-      "Amina",
+      "Iyanu",
     );
 
     expect(updated).toMatchObject({
@@ -417,7 +431,7 @@ describe("attendee store", () => {
       seed_sn: baseline.seed_sn,
       school_name: "Edited Before Seed Command",
       source_image: baseline.source_image,
-      updated_by: "Amina",
+      updated_by: "Iyanu",
     });
     expect(await listAttendees()).toEqual([updated]);
   });

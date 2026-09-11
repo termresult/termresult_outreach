@@ -1,5 +1,6 @@
 import { AttendeeError } from "@/lib/store/attendees";
 import type { AttendeeInput } from "@/types/attendee";
+import { isOperatorName, OPERATOR_NAMES } from "@/types/proprietor";
 
 type ParsedAttendeeUpdate = {
   input: Partial<AttendeeInput>;
@@ -21,6 +22,12 @@ export function parseAttendeeUpdateBody(value: unknown): ParsedAttendeeUpdate {
   const body = value as Record<string, unknown>;
   if (typeof body.operator_name !== "string") {
     throw new AttendeeError("Operator name must be a string.", 400);
+  }
+  if (!isOperatorName(body.operator_name)) {
+    throw new AttendeeError(
+      `Operator name must be one of: ${OPERATOR_NAMES.join(", ")}.`,
+      400,
+    );
   }
 
   const input: Partial<AttendeeInput> = {};

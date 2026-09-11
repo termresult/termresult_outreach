@@ -8,6 +8,7 @@ import {
   type AttendeeInput,
   type AttendanceStatus,
 } from "@/types/attendee";
+import { isOperatorName, OPERATOR_NAMES } from "@/types/proprietor";
 
 const COLLECTION = "event_attendees";
 const SEED_ATTENDEES_BY_ID = new Map(ATTENDEE_SEED_ROWS.map((row) => [row.id, row]));
@@ -39,9 +40,13 @@ function isAttendanceStatus(value: unknown): value is AttendanceStatus {
 }
 
 function requireActor(actor: string): string {
-  const name = actor.trim();
-  if (!name) throw new AttendeeError("Your name is required.", 400);
-  return name;
+  if (!isOperatorName(actor)) {
+    throw new AttendeeError(
+      `Operator name must be one of: ${OPERATOR_NAMES.join(", ")}.`,
+      400,
+    );
+  }
+  return actor;
 }
 
 function compareAttendees(a: Attendee, b: Attendee): number {

@@ -28,6 +28,15 @@ export const SOFTWARE_LABELS: Record<SchoolSoftware, string> = {
 
 export const OPERATOR_NAMES = ["Iyanu", "Possible", "Abdul", "Pelumi"] as const;
 
+export type OperatorName = (typeof OPERATOR_NAMES)[number];
+
+export function isOperatorName(value: unknown): value is OperatorName {
+  return (
+    typeof value === "string" &&
+    (OPERATOR_NAMES as readonly string[]).includes(value)
+  );
+}
+
 export const OPERATOR_STORAGE_KEY = "outreach_operator_name";
 
 export const LOCK_MS = 15 * 60 * 1000;

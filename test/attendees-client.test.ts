@@ -38,4 +38,34 @@ describe("attendee PATCH client response", () => {
       "The server returned an invalid attendee response.",
     );
   });
+
+  it.each([
+    ["a string", "truthy"],
+    ["an array", []],
+    ["an incomplete object", { id: "printed-1" }],
+    [
+      "an object with an invalid status",
+      {
+        id: "printed-1",
+        seed_sn: 1,
+        contact_name: null,
+        school_name: "School",
+        phone: null,
+        email: null,
+        status: "maybe",
+        source_image: null,
+        transcription_notes: null,
+        created_at: "2026-09-11T00:00:00.000Z",
+        updated_at: "2026-09-11T00:00:00.000Z",
+        updated_by: "Iyanu",
+      },
+    ],
+  ])("rejects a successful response whose attendee is %s", async (_label, attendee) => {
+    const response = Response.json({ attendee });
+    const payload = await decodeAttendeePatchResponse(response);
+
+    expect(attendeePatchFailure(response.ok, payload)).toBe(
+      "The server returned an invalid attendee response.",
+    );
+  });
 });
