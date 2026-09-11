@@ -81,6 +81,26 @@ describe("filterAttendees", () => {
 });
 
 describe("ATTENDEE_SEED_ROWS", () => {
+  const expectedHandwrittenIds = [
+    "handwritten-creme-quintessence",
+    "handwritten-foundation-of-success",
+    "handwritten-lofty-height",
+    "handwritten-excellent-mindset",
+    "handwritten-terrigem-royal",
+    "handwritten-winners-joy",
+    "handwritten-chessy-kidies",
+    "handwritten-first-choice-model",
+    "handwritten-victory-of-god",
+    "handwritten-advanced-proficiency",
+    "handwritten-triple-divine",
+    "handwritten-catering-model",
+    "handwritten-noble-kiddies",
+    "handwritten-aggs-apo",
+    "handwritten-purple-lilly",
+    "handwritten-jeika-premier",
+    "handwritten-meganiel-academy",
+  ];
+
   it("has stable unique IDs and non-empty school names", () => {
     const ids = ATTENDEE_SEED_ROWS.map((row) => row.id);
 
@@ -88,17 +108,26 @@ describe("ATTENDEE_SEED_ROWS", () => {
     expect(ATTENDEE_SEED_ROWS.every((row) => row.school_name.trim().length > 0)).toBe(true);
   });
 
-  it("names a source image and contains both attendance statuses", () => {
-    expect(ATTENDEE_SEED_ROWS.every((row) => /^IMG_677\d\.HEIC$|^IMG_6769\.HEIC$/.test(row.source_image))).toBe(true);
+  it("uses exactly the supported source images and contains both attendance statuses", () => {
+    expect(new Set(ATTENDEE_SEED_ROWS.map((row) => row.source_image))).toEqual(
+      new Set([
+        "IMG_6769.HEIC",
+        "IMG_6770.HEIC",
+        "IMG_6771.HEIC",
+        "IMG_6772.HEIC",
+        "IMG_6773.HEIC",
+        "IMG_6774.HEIC",
+      ]),
+    );
     expect(new Set(ATTENDEE_SEED_ROWS.map((row) => row.status))).toEqual(
       new Set(["attended", "did_not_attend"]),
     );
   });
 
-  it("marks every fully handwritten source record attended", () => {
+  it("has the exact reviewed handwritten IDs and marks all attended", () => {
     const handwritten = ATTENDEE_SEED_ROWS.filter((row) => row.source_kind === "handwritten");
 
-    expect(handwritten.length).toBeGreaterThan(0);
+    expect(handwritten.map((row) => row.id).sort()).toEqual([...expectedHandwrittenIds].sort());
     expect(handwritten.every((row) => row.status === "attended")).toBe(true);
   });
 
@@ -111,9 +140,67 @@ describe("ATTENDEE_SEED_ROWS", () => {
   });
 
   it("preserves the reviewed row and attendance totals", () => {
-    expect(ATTENDEE_SEED_ROWS).toHaveLength(118);
-    expect(ATTENDEE_SEED_ROWS.filter((row) => row.status === "attended")).toHaveLength(61);
+    expect(ATTENDEE_SEED_ROWS).toHaveLength(121);
+    expect(ATTENDEE_SEED_ROWS.filter((row) => row.status === "attended")).toHaveLength(64);
     expect(ATTENDEE_SEED_ROWS.filter((row) => row.status === "did_not_attend")).toHaveLength(57);
-    expect(ATTENDEE_SEED_ROWS.filter((row) => row.source_kind === "handwritten")).toHaveLength(14);
+    expect(ATTENDEE_SEED_ROWS.filter((row) => row.source_kind === "handwritten")).toHaveLength(17);
+  });
+
+  it("locks key printed attendance decisions", () => {
+    const printedBySerial = new Map(
+      ATTENDEE_SEED_ROWS
+        .filter((row) => row.source_kind === "printed")
+        .map((row) => [row.seed_sn, row]),
+    );
+
+    for (const serial of [1, 6, 21, 68, 72, 99, 104]) {
+      expect(printedBySerial.get(serial)?.status, `serial ${serial}`).toBe("attended");
+    }
+    for (const serial of [2, 16, 40, 71, 101]) {
+      expect(printedBySerial.get(serial)?.status, `serial ${serial}`).toBe("did_not_attend");
+    }
+  });
+
+  it("preserves the IMG_6773 extension rows without fake contact values", () => {
+    const extensionRows = ATTENDEE_SEED_ROWS.filter(
+      (row) => row.source_image === "IMG_6773.HEIC",
+    );
+
+    expect(extensionRows).toMatchObject([
+      {
+        id: "handwritten-catering-model",
+        contact_name: "Akiri Joy A.",
+        school_name: "Catering Model Academy",
+        phone: null,
+        email: null,
+        status: "attended",
+      },
+      {
+        id: "handwritten-noble-kiddies",
+        contact_name: "Ijeoma Kalu",
+        school_name: "Noble Kiddies Academy",
+        phone: "+2348034783207",
+        email: null,
+        status: "attended",
+      },
+      {
+        id: "handwritten-aggs-apo",
+        contact_name: "Emagborom Magdalene Msember",
+        school_name: "AGGS, Apo",
+        phone: null,
+        email: null,
+        status: "attended",
+      },
+    ]);
+
+    expect(
+      ATTENDEE_SEED_ROWS.every(
+        (row) =>
+          !row.phone?.includes("…") &&
+          !row.email?.includes("…") &&
+          !row.phone?.includes("[") &&
+          !row.email?.includes("["),
+      ),
+    ).toBe(true);
   });
 });

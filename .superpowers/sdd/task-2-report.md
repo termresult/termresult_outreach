@@ -132,3 +132,77 @@ All Task 2 code, tests, package command, and this report are committed together 
 
 - The seed command intentionally cannot execute until Task 3 provides `src/lib/store/attendees.ts` with `upsertSeedAttendee(row)`. This is the explicit integration seam requested by the brief.
 - Several source contacts remain uncertain due to cropping or overwritten handwriting; those cases are preserved in `transcription_notes` rather than guessed.
+
+## Review Correction: IMG_6773 Extension Rows
+
+The Task 2 review identified that `IMG_6773` contains three unique handwritten records in addition to its overlap with `IMG_6772`. Added all three as attended records:
+
+- `handwritten-catering-model`: Akiri Joy A., Catering Model Academy. Phone and email are null. Notes preserve the Catering/Cathering ambiguity and partial overwritten `akirijoy…@gmail…` email.
+- `handwritten-noble-kiddies`: Ijeoma Kalu, Noble Kiddies Academy. Primary phone is `+2348034783207`; email is null. Notes preserve partial ambiguous `ljoyu@gmail.co…`.
+- `handwritten-aggs-apo`: Emagborom Magdalene Msember, AGGS, Apo. Phone and email are null. Notes preserve partial `080360581…` and `dooshimamsember@…`.
+
+Foundation of Success remains a distinct handwritten record. Its notes now identify printed serial 47 as a possible duplicate while documenting why a merge is unsafe: different contact, no matching phone, and no matching location.
+
+### Correction TDD evidence
+
+RED command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed RED:
+
+- Exit code: 1
+- 12 tests run: 8 passed, 4 failed
+- Failures explicitly showed the missing `IMG_6773.HEIC` source, three missing handwritten IDs, stale 118-row total, and absent extension-row objects.
+
+GREEN focused command:
+
+`pnpm test test/attendees.test.ts`
+
+Observed GREEN:
+
+- Exit code: 0
+- 1 test file passed
+- 12 tests passed
+
+GREEN full command:
+
+`pnpm test`
+
+Observed GREEN:
+
+- Exit code: 0
+- 9 test files passed
+- 49 tests passed
+
+Lint command:
+
+`pnpm exec eslint test/attendees.test.ts src/lib/attendees/seed-data.ts`
+
+Observed lint result:
+
+- Exit code: 0
+- No lint findings
+
+### Strengthened integrity coverage
+
+- Exact set of 17 stable handwritten IDs.
+- Exact supported source-image set covering `IMG_6769.HEIC` through `IMG_6774.HEIC`.
+- Explicit attended decisions for printed serials 1, 6, 21, 68, 72, 99, and 104.
+- Explicit did-not-attend decisions for printed serials 2, 16, 40, 71, and 101.
+- Exact `IMG_6773` extension row names, schools, contact fields, and attended statuses.
+- Guard against cropped ellipses or bracket markers appearing in phone/email fields.
+
+### Corrected data counts
+
+- Total: 121
+- Attended: 64
+- Did not attend: 57
+- Printed source records: 104
+- Unique fully handwritten source records: 17
+- `IMG_6773.HEIC` primary source records: 3
+
+### Correction concerns
+
+- Cropped `IMG_6773` contacts remain intentionally null where no complete value is supported; all trustworthy partial text is retained in `transcription_notes`.
+- The Task 3 store integration seam remains intentionally unresolved until Task 3 supplies `upsertSeedAttendee`.
