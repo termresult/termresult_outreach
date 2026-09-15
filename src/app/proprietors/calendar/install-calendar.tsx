@@ -2,14 +2,28 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  bookingHref,
+  bookingKindLabel,
+  calendarBookingMap,
+  collectCalendarBookings,
+} from "@/lib/proprietors/calendar-bookings";
 import { formatInstallDayLong, todayInLagos } from "@/lib/proprietors/install-date";
 import { OPERATOR_NAMES, OPERATOR_STORAGE_KEY } from "@/types/proprietor";
+import type { Attendee } from "@/types/attendee";
 import type { Proprietor } from "@/types/proprietor";
 import { InstallMonthGrid } from "../install-month-grid";
 import { BookSchoolSheet } from "./book-school-sheet";
 
-export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
+export function InstallCalendar({
+  initial,
+  initialAttendees,
+}: {
+  initial: Proprietor[];
+  initialAttendees: Attendee[];
+}) {
   const [rows, setRows] = useState(initial);
+  const [attendees, setAttendees] = useState(initialAttendees);
   const [today, setToday] = useState("");
   const [cursor, setCursor] = useState({ year: 2026, month: 1 });
   const [picking, setPicking] = useState<string | null>(null);
@@ -25,10 +39,18 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const response = await fetch("/api/proprietors");
-    if (!response.ok) return;
-    const data = (await response.json()) as { proprietors: Proprietor[] };
-    setRows(data.proprietors);
+    const [proprietorResponse, attendeeResponse] = await Promise.all([
+      fetch("/api/proprietors"),
+      fetch("/api/attendees"),
+    ]);
+    if (proprietorResponse.ok) {
+      const data = (await proprietorResponse.json()) as { proprietors: Proprietor[] };
+      setRows(data.proprietors);
+    }
+    if (attendeeResponse.ok) {
+      const data = (await attendeeResponse.json()) as { attendees: Attendee[] };
+      setAttendees(data.attendees);
+    }
   }, []);
 
   useEffect(() => {
@@ -38,20 +60,18 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
     return () => window.clearInterval(tick);
   }, [refresh]);
 
-  const booked = useMemo(() => {
-    const map = new Map<string, Proprietor>();
-    for (const row of rows) {
-      if (row.install_date) map.set(row.install_date, row);
-    }
-    return map;
-  }, [rows]);
+  const bookings = useMemo(
+    () => collectCalendarBookings(rows, attendees),
+    [rows, attendees],
+  );
+  const booked = useMemo(() => calendarBookingMap(bookings), [bookings]);
 
   const upcoming = useMemo(
     () =>
-      rows
-        .filter((row) => row.install_date && row.install_date >= today)
-        .sort((a, b) => (a.install_date ?? "").localeCompare(b.install_date ?? "")),
-    [rows, today],
+      bookings
+        .filter((row) => row.install_date >= today)
+        .sort((a, b) => a.install_date.localeCompare(b.install_date)),
+    [bookings, today],
   );
 
   if (!today) {
@@ -64,6 +84,7 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
         <p className="text-sm font-bold text-slate-900">Are we free that day?</p>
         <p className="mt-1 text-xs text-slate-500">
           Tap a green day, search the school, and book it. Blue days already have a school.
+          Event schools are marked Attended or Did not attend.
         </p>
         <div className="mt-4">
           <InstallMonthGrid
@@ -85,14 +106,15 @@ export function InstallCalendar({ initial }: { initial: Proprietor[] }) {
           <div className="mt-3 space-y-2">
             {upcoming.map((row) => (
               <Link
-                key={row.id}
-                href={`/proprietors?open=${row.id}`}
+                key={`${row.kind}-${row.id}`}
+                href={bookingHref(row)}
                 className="block rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm"
               >
                 <p className="text-sm font-bold text-slate-900">{row.school_name}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {formatInstallDayLong(row.install_date!)}
+                  {formatInstallDayLong(row.install_date)}
                   {row.install_booked_by ? ` · ${row.install_booked_by}` : ""}
+                  {` · ${bookingKindLabel(row.kind)}`}
                 </p>
               </Link>
             ))}

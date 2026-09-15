@@ -3,7 +3,9 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/ui/ds";
 import { getSessionUser } from "@/lib/auth/session";
 import { filterAttendees, parseAttendeeQuery } from "@/lib/attendees/query";
+import { bookingFromProprietor } from "@/lib/proprietors/calendar-bookings";
 import { listAttendeesWithSeedBaseline } from "@/lib/store/attendees";
+import { listProprietors } from "@/lib/store/proprietors";
 import { AttendeesBoard } from "./attendees-board";
 
 export default async function AttendeesPage({
@@ -22,27 +24,38 @@ export default async function AttendeesPage({
       ),
     ),
   );
-  const all = await listAttendeesWithSeedBaseline();
+  const [all, proprietors] = await Promise.all([
+    listAttendeesWithSeedBaseline(),
+    listProprietors(),
+  ]);
   const rows = filterAttendees(all, query);
   const totals = {
     all: all.length,
     attended: all.filter((row) => row.status === "attended").length,
     didNotAttend: all.filter((row) => row.status === "did_not_attend").length,
+    notContacted: all.filter((row) => !row.contacted).length,
+    priority: all.filter((row) => row.priority).length,
   };
+  const openId = typeof raw.open === "string" ? raw.open : null;
 
   return (
     <AppShell email={user.email}>
       <PageHeader
         eyebrow="Event register"
         title="Attendees"
-        description="Review the event sheets, verify uncertain transcriptions, and keep each school’s attendance details current."
+        description="Contact every school from the event, mark who you have reached, star the priorities, and book their install day."
       />
 
       <AttendeesBoard
-        key={`${query.q ?? ""}:${query.status ?? ""}`}
+        key={`${query.q ?? ""}:${query.status ?? ""}:${query.outreach ?? ""}:${query.flag ?? ""}:${openId ?? ""}`}
         initialRows={rows}
         initialTotals={totals}
         query={query}
+        openId={openId}
+        proprietorBookings={proprietors.flatMap((row) => {
+          const booking = bookingFromProprietor(row);
+          return booking ? [booking] : [];
+        })}
       />
     </AppShell>
   );

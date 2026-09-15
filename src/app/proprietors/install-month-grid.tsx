@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { BRAND, hexToRgba } from "@/lib/color";
+import {
+  bookingHref,
+  bookingKindLabel,
+  type CalendarBooking,
+} from "@/lib/proprietors/calendar-bookings";
 import { monthCells, monthLabel, shiftMonth } from "@/lib/proprietors/install-date";
-import type { Proprietor } from "@/types/proprietor";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -22,7 +26,7 @@ export function InstallMonthGrid({
   year: number;
   month: number;
   today: string;
-  booked: Map<string, Proprietor>;
+  booked: Map<string, CalendarBooking>;
   selected?: string;
   ownerId?: string | null;
   onMonthChange: (next: { year: number; month: number }) => void;
@@ -91,6 +95,9 @@ export function InstallMonthGrid({
                   Booked
                 </p>
                 <p className="line-clamp-2 text-[10px] font-semibold text-slate-800">{school.school_name}</p>
+                {school.kind !== "proprietor" ? (
+                  <p className="text-[10px] font-semibold text-slate-600">{bookingKindLabel(school.kind)}</p>
+                ) : null}
                 {school.install_booked_by ? (
                   <p className="text-[10px] text-slate-500">{school.install_booked_by}</p>
                 ) : null}
@@ -118,7 +125,7 @@ export function InstallMonthGrid({
               return (
                 <Link
                   key={cell.date}
-                  href={`/proprietors?open=${school.id}`}
+                  href={bookingHref(school)}
                   className="min-h-[76px] rounded-xl border p-1.5 text-left"
                   style={style}
                 >

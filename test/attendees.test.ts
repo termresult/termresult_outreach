@@ -9,7 +9,15 @@ import {
   upsertSeedAttendee,
 } from "@/lib/store/attendees";
 import { memoryStore, resetMemoryStore } from "@/lib/store/memory";
+import { todayInLagos } from "@/lib/proprietors/install-date";
+import { collectCalendarBookings } from "@/lib/proprietors/calendar-bookings";
 import type { Attendee, AttendeeInput } from "@/types/attendee";
+
+function dayFromToday(offset: number): string {
+  const [year, month, day] = todayInLagos().split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + offset));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
 
 function sample(over: Partial<Attendee> = {}): Attendee {
   return {
@@ -22,6 +30,10 @@ function sample(over: Partial<Attendee> = {}): Attendee {
     status: "attended",
     source_image: "IMG_6769.HEIC",
     transcription_notes: null,
+    contacted: false,
+    priority: false,
+    install_date: null,
+    install_booked_by: null,
     created_at: "2026-09-11T00:00:00.000Z",
     updated_at: "2026-09-11T00:00:00.000Z",
     updated_by: "Iyanu",
@@ -54,12 +66,32 @@ const rows: Attendee[] = [
 describe("parseAttendeeQuery", () => {
   it("parses q and supported status values", () => {
     const params = new URLSearchParams("q=bright&status=attended");
-    expect(parseAttendeeQuery(params)).toEqual({ q: "bright", status: "attended" });
+    expect(parseAttendeeQuery(params)).toEqual({
+      q: "bright",
+      status: "attended",
+      outreach: "",
+      flag: "",
+    });
+  });
+
+  it("parses outreach and flag filters", () => {
+    const params = new URLSearchParams("outreach=not_contacted&flag=priority");
+    expect(parseAttendeeQuery(params)).toEqual({
+      q: "",
+      status: "",
+      outreach: "not_contacted",
+      flag: "priority",
+    });
   });
 
   it("treats unsupported status values as all records", () => {
     const params = new URLSearchParams("status=maybe");
-    expect(parseAttendeeQuery(params)).toEqual({ q: "", status: "" });
+    expect(parseAttendeeQuery(params)).toEqual({
+      q: "",
+      status: "",
+      outreach: "",
+      flag: "",
+    });
   });
 });
 
@@ -85,6 +117,20 @@ describe("filterAttendees", () => {
   it("returns all rows when status is empty or unsupported", () => {
     expect(filterAttendees(rows, { status: "" })).toHaveLength(3);
     expect(filterAttendees(rows, {})).toHaveLength(3);
+  });
+
+  it("filters contacted, priority, and booked outreach work", () => {
+    const working = [
+      sample({ id: "a", contacted: false, priority: true, install_date: null }),
+      sample({ id: "b", contacted: true, priority: false, install_date: "2026-09-20" }),
+      sample({ id: "c", contacted: true, priority: true, install_date: null }),
+    ];
+
+    expect(filterAttendees(working, { outreach: "not_contacted" }).map((row) => row.id)).toEqual(["a"]);
+    expect(filterAttendees(working, { outreach: "contacted" }).map((row) => row.id)).toEqual(["b", "c"]);
+    expect(filterAttendees(working, { flag: "priority" }).map((row) => row.id)).toEqual(["a", "c"]);
+    expect(filterAttendees(working, { flag: "booked" }).map((row) => row.id)).toEqual(["b"]);
+    expect(filterAttendees(working, { flag: "unbooked" }).map((row) => row.id)).toEqual(["a", "c"]);
   });
 });
 
@@ -434,5 +480,92 @@ describe("attendee store", () => {
       updated_by: "Iyanu",
     });
     expect(await listAttendees()).toEqual([updated]);
+  });
+
+  it("saves contacted, priority, and an install day on an attendee", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+    const day = dayFromToday(8);
+    const updated = await updateAttendee(
+      attendee.id,
+      { contacted: true, priority: true, install_date: day },
+      "Possible",
+    );
+
+    expect(updated).toMatchObject({
+      contacted: true,
+      priority: true,
+      install_date: day,
+      install_booked_by: "Possible",
+    });
+    expect(memoryStore().install_slots[day]?.proprietor_id).toBe(attendee.id);
+  });
+
+  it("rejects an install day already taken by a proprietor", async () => {
+    const day = dayFromToday(9);
+    memoryStore().install_slots[day] = {
+      date: day,
+      proprietor_id: "prop-1",
+      school_name: "Taken School",
+      booked_by: "Abdul",
+      booked_at: new Date().toISOString(),
+    };
+    const { attendee } = await upsertSeedAttendee(seed());
+
+    await expect(
+      updateAttendee(attendee.id, { install_date: day }, "Iyanu"),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it("seeds outreach fields as untouched", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+    expect(attendee).toMatchObject({
+      contacted: false,
+      priority: false,
+      install_date: null,
+      install_booked_by: null,
+    });
+  });
+});
+
+describe("collectCalendarBookings", () => {
+  it("keeps attendee bookings visible as attended or did not attend", () => {
+    const bookings = collectCalendarBookings(
+      [
+        {
+          id: "p1",
+          school_name: "Proprietor School",
+          install_date: "2026-09-18",
+          install_booked_by: "Iyanu",
+        },
+      ],
+      [
+        sample({
+          id: "a1",
+          school_name: "Event School",
+          status: "did_not_attend",
+          install_date: "2026-09-19",
+          install_booked_by: "Pelumi",
+        }),
+      ],
+    );
+
+    expect(bookings).toEqual([
+      {
+        id: "p1",
+        school_name: "Proprietor School",
+        install_date: "2026-09-18",
+        install_booked_by: "Iyanu",
+        kind: "proprietor",
+      },
+      {
+        id: "a1",
+        school_name: "Event School",
+        install_date: "2026-09-19",
+        install_booked_by: "Pelumi",
+        kind: "did_not_attend",
+      },
+    ]);
   });
 });

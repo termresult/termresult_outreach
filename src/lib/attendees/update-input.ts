@@ -54,5 +54,26 @@ export function parseAttendeeUpdateBody(value: unknown): ParsedAttendeeUpdate {
     input.status = body.status as AttendeeInput["status"];
   }
 
+  if (body.contacted !== undefined) {
+    if (typeof body.contacted !== "boolean") {
+      throw new AttendeeError("Contacted must be true or false.", 400);
+    }
+    input.contacted = body.contacted;
+  }
+
+  if (body.priority !== undefined) {
+    if (typeof body.priority !== "boolean") {
+      throw new AttendeeError("Priority must be true or false.", 400);
+    }
+    input.priority = body.priority;
+  }
+
+  if (body.install_date !== undefined) {
+    if (body.install_date !== null && typeof body.install_date !== "string") {
+      throw new AttendeeError("Install date must be a string or null.", 400);
+    }
+    input.install_date = body.install_date;
+  }
+
   return { input, actor: body.operator_name };
 }

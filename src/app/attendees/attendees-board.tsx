@@ -7,7 +7,9 @@ import {
   ClipboardList,
   FileWarning,
   Pencil,
+  Phone,
   Search,
+  Star,
   UserRoundX,
   Users,
   X,
@@ -20,6 +22,12 @@ import {
 } from "@/lib/attendees/client-response";
 import { filterAttendees, type AttendeeQuery } from "@/lib/attendees/query";
 import { BRAND, hexToRgba } from "@/lib/color";
+import {
+  bookingFromAttendee,
+  type CalendarBooking,
+} from "@/lib/proprietors/calendar-bookings";
+import { formatInstallDay } from "@/lib/proprietors/install-date";
+import { InstallDateField } from "@/app/proprietors/install-date-field";
 import {
   OPERATOR_NAMES,
   OPERATOR_STORAGE_KEY,
@@ -34,11 +42,13 @@ type Totals = {
   all: number;
   attended: number;
   didNotAttend: number;
+  notContacted: number;
+  priority: number;
 };
 
 type EditingState = {
   attendee: Attendee;
-  trigger: HTMLButtonElement;
+  trigger: HTMLButtonElement | null;
 };
 
 type FormState = {
@@ -48,6 +58,9 @@ type FormState = {
   email: string;
   status: AttendanceStatus;
   transcription_notes: string;
+  contacted: boolean;
+  priority: boolean;
+  install_date: string;
 };
 
 const STATUS_LABELS: Record<AttendanceStatus, string> = {
@@ -63,6 +76,9 @@ function formFromRow(row: Attendee): FormState {
     email: row.email ?? "",
     status: row.status,
     transcription_notes: row.transcription_notes ?? "",
+    contacted: row.contacted,
+    priority: row.priority,
+    install_date: row.install_date ?? "",
   };
 }
 
@@ -74,6 +90,9 @@ function attendeeInput(form: FormState): AttendeeInput {
     email: form.email,
     status: form.status,
     transcription_notes: form.transcription_notes,
+    contacted: form.contacted,
+    priority: form.priority,
+    install_date: form.install_date || null,
   };
 }
 
@@ -81,14 +100,21 @@ export function AttendeesBoard({
   initialRows,
   initialTotals,
   query,
+  openId = null,
+  proprietorBookings,
 }: {
   initialRows: Attendee[];
   initialTotals: Totals;
   query: AttendeeQuery;
+  openId?: string | null;
+  proprietorBookings: CalendarBooking[];
 }) {
   const [rows, setRows] = useState(initialRows);
   const [totals, setTotals] = useState(initialTotals);
-  const [editing, setEditing] = useState<EditingState | null>(null);
+  const opened = openId ? initialRows.find((row) => row.id === openId) ?? null : null;
+  const [editing, setEditing] = useState<EditingState | null>(
+    opened ? { attendee: opened, trigger: null } : null,
+  );
 
   function openEditor(
     attendee: Attendee,
@@ -97,29 +123,46 @@ export function AttendeesBoard({
     setEditing({ attendee, trigger });
   }
 
-  function applySaved(attendee: Attendee, previousStatus: AttendanceStatus) {
+  function applySaved(attendee: Attendee, previous: Attendee) {
     setRows((current) => {
       const updated = current.map((row) =>
         row.id === attendee.id ? attendee : row,
       );
       return filterAttendees(updated, query);
     });
-    if (attendee.status !== previousStatus) {
-      setTotals((current) => ({
-        ...current,
-        attended:
-          current.attended + (attendee.status === "attended" ? 1 : -1),
-        didNotAttend:
-          current.didNotAttend +
-          (attendee.status === "did_not_attend" ? 1 : -1),
-      }));
-    }
+    setTotals((current) => ({
+      ...current,
+      attended:
+        current.attended +
+        (attendee.status === "attended" ? 1 : 0) -
+        (previous.status === "attended" ? 1 : 0),
+      didNotAttend:
+        current.didNotAttend +
+        (attendee.status === "did_not_attend" ? 1 : 0) -
+        (previous.status === "did_not_attend" ? 1 : 0),
+      notContacted:
+        current.notContacted +
+        (attendee.contacted ? 0 : 1) -
+        (previous.contacted ? 0 : 1),
+      priority:
+        current.priority +
+        (attendee.priority ? 1 : 0) -
+        (previous.priority ? 1 : 0),
+    }));
     setEditing(null);
   }
 
+  const installBookings = [
+    ...proprietorBookings,
+    ...rows.flatMap((row) => {
+      const booking = bookingFromAttendee(row);
+      return booking ? [booking] : [];
+    }),
+  ];
+
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={<ClipboardList className="h-4 w-4" />}
           value={String(totals.all)}
@@ -138,13 +181,25 @@ export function AttendeesBoard({
           label="Did not attend"
           hint="Registered schools not present"
         />
+        <StatCard
+          icon={<Phone className="h-4 w-4" />}
+          value={String(totals.notContacted)}
+          label="Not contacted"
+          hint="Still waiting for a first call"
+        />
+        <StatCard
+          icon={<Star className="h-4 w-4" />}
+          value={String(totals.priority)}
+          label="Priority"
+          hint="Schools to follow first"
+        />
       </div>
 
       <form
         method="get"
         className="mt-6 rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px_auto]">
           <label>
             <span className="sr-only">Search attendees</span>
             <span className="relative block">
@@ -168,6 +223,23 @@ export function AttendeesBoard({
               <option value="did_not_attend">Did not attend</option>
             </FormSelect>
           </label>
+          <label>
+            <span className="sr-only">Contacted</span>
+            <FormSelect name="outreach" defaultValue={query.outreach}>
+              <option value="">All follow-up</option>
+              <option value="not_contacted">Not contacted</option>
+              <option value="contacted">Contacted</option>
+            </FormSelect>
+          </label>
+          <label>
+            <span className="sr-only">Priority and install</span>
+            <FormSelect name="flag" defaultValue={query.flag}>
+              <option value="">All flags</option>
+              <option value="priority">Priority</option>
+              <option value="booked">Install booked</option>
+              <option value="unbooked">No install date</option>
+            </FormSelect>
+          </label>
           <button
             type="submit"
             className="h-10 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
@@ -176,7 +248,7 @@ export function AttendeesBoard({
             Apply filters
           </button>
         </div>
-        {query.q || query.status ? (
+        {query.q || query.status || query.outreach || query.flag ? (
           <Link
             href="/attendees"
             className="mt-3 inline-flex text-sm font-semibold"
@@ -206,7 +278,7 @@ export function AttendeesBoard({
       ) : (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <article
                 key={row.id}
                 className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
@@ -214,7 +286,7 @@ export function AttendeesBoard({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900">
-                      {row.school_name}
+                      {index + 1}. {row.school_name}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {row.contact_name || "Contact name not provided"}
@@ -222,10 +294,20 @@ export function AttendeesBoard({
                   </div>
                   <AttendanceBadge status={row.status} />
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <OutreachBadge contacted={row.contacted} />
+                  {row.priority ? <PriorityBadge /> : null}
+                </div>
                 <dl className="mt-3 space-y-1 text-sm">
                   <Detail label="Phone" value={row.phone} />
                   <Detail label="Email" value={row.email} />
                 </dl>
+                {row.install_date ? (
+                  <p className="mt-2 text-sm font-semibold" style={{ color: BRAND }}>
+                    Install {formatInstallDay(row.install_date)}
+                    {row.install_booked_by ? ` · ${row.install_booked_by}` : ""}
+                  </p>
+                ) : null}
                 {row.transcription_notes ? (
                   <VerificationNote notes={row.transcription_notes} />
                 ) : null}
@@ -246,7 +328,7 @@ export function AttendeesBoard({
             <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["School", "Contact", "Phone", "Email", "Attendance", "Verification", ""].map(
+                  {["#", "School", "Contact", "Phone", "Follow-up", "Attendance", "Install", ""].map(
                     (label, index) => (
                       <th
                         key={`${label}-${index}`}
@@ -260,8 +342,11 @@ export function AttendeesBoard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {rows.map((row) => (
+                {rows.map((row, index) => (
                   <tr key={row.id} className="align-top hover:bg-slate-50/50">
+                    <td className="w-12 px-4 py-3 tabular-nums text-slate-500">
+                      {index + 1}.
+                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900">
                       {row.school_name}
                     </td>
@@ -271,18 +356,19 @@ export function AttendeesBoard({
                     <td className="px-4 py-3 text-slate-600">
                       {row.phone || "Not provided"}
                     </td>
-                    <td className="max-w-52 break-words px-4 py-3 text-slate-600">
-                      {row.email || "Not provided"}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <OutreachBadge contacted={row.contacted} />
+                        {row.priority ? <PriorityBadge /> : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <AttendanceBadge status={row.status} />
                     </td>
-                    <td className="max-w-72 px-4 py-3 text-slate-600">
-                      {row.transcription_notes ? (
-                        <VerificationNote notes={row.transcription_notes} compact />
-                      ) : (
-                        <span className="text-slate-400">No note</span>
-                      )}
+                    <td className="px-4 py-3 text-slate-600">
+                      {row.install_date
+                        ? `${formatInstallDay(row.install_date)}${row.install_booked_by ? ` · ${row.install_booked_by}` : ""}`
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
@@ -308,11 +394,36 @@ export function AttendeesBoard({
           key={editing.attendee.id}
           attendee={editing.attendee}
           returnFocusTo={editing.trigger}
+          bookings={installBookings}
           onClose={() => setEditing(null)}
-          onSaved={(saved) => applySaved(saved, editing.attendee.status)}
+          onSaved={(saved) => applySaved(saved, editing.attendee)}
         />
       ) : null}
     </div>
+  );
+}
+
+function OutreachBadge({ contacted }: { contacted: boolean }) {
+  return (
+    <span
+      className="inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      style={
+        contacted
+          ? { backgroundColor: hexToRgba(BRAND, 0.08), color: BRAND }
+          : { backgroundColor: "#FFF7ED", color: "#C2410C" }
+      }
+    >
+      {contacted ? "Contacted" : "Not contacted"}
+    </span>
+  );
+}
+
+function PriorityBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+      <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
+      Priority
+    </span>
   );
 }
 
@@ -389,11 +500,13 @@ function rememberOperator(operator: string): void {
 function EditAttendeeDialog({
   attendee,
   returnFocusTo,
+  bookings,
   onClose,
   onSaved,
 }: {
   attendee: Attendee;
   returnFocusTo: HTMLButtonElement | null;
+  bookings: CalendarBooking[];
   onClose: () => void;
   onSaved: (attendee: Attendee) => void;
 }) {
@@ -501,7 +614,7 @@ function EditAttendeeDialog({
               {attendee.school_name}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-slate-500">
-              Correct the transcription or attendance status.
+              Mark contact, star a priority, and book an install day.
             </p>
           </div>
           <button
@@ -566,6 +679,37 @@ function EditAttendeeDialog({
               <option value="did_not_attend">Did not attend</option>
             </FormSelect>
           </label>
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={form.contacted}
+              onChange={(event) =>
+                setForm({ ...form, contacted: event.target.checked })
+              }
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span className="text-sm font-semibold text-slate-900">Contacted</span>
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={form.priority}
+              onChange={(event) =>
+                setForm({ ...form, priority: event.target.checked })
+              }
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Star className="h-4 w-4 text-amber-500" aria-hidden="true" />
+              Priority
+            </span>
+          </label>
+          <InstallDateField
+            value={form.install_date}
+            ownerId={attendee.id}
+            bookings={bookings}
+            onChange={(install_date) => setForm({ ...form, install_date })}
+          />
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Transcription verification notes

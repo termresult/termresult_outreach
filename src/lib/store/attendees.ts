@@ -1,6 +1,12 @@
 import type { DocumentData } from "firebase-admin/firestore";
 import { ATTENDEE_SEED_ROWS, type SeedAttendee } from "@/lib/attendees/seed-data";
 import { adminDb } from "@/lib/firebase/admin";
+import {
+  asInstallDate,
+  isPastInstallDate,
+  slotTakenMessage,
+  type InstallSlot,
+} from "@/lib/proprietors/install-date";
 import { memoryStore, useMemoryStore as isMemoryStore } from "@/lib/store/memory";
 import {
   ATTENDANCE_STATUSES,
@@ -24,10 +30,41 @@ export class AttendeeError extends Error {
 
 function asAttendee(id: string, data: DocumentData | undefined): Attendee | null {
   if (!data) return null;
+  const row = data as Attendee;
   return {
-    ...(data as Attendee),
+    ...row,
     id: (data.id as string) || id,
+    contacted: Boolean(row.contacted),
+    priority: Boolean(row.priority),
+    install_date: row.install_date ?? null,
+    install_booked_by: row.install_booked_by ?? null,
   };
+}
+
+function parseInstallDate(value: string | null | undefined): string | null {
+  try {
+    return asInstallDate(value);
+  } catch {
+    throw new AttendeeError("Install date must be a calendar day.", 400);
+  }
+}
+
+function asSlot(data: DocumentData | undefined): InstallSlot | null {
+  if (!data?.date || !data.proprietor_id) return null;
+  return {
+    date: String(data.date),
+    proprietor_id: String(data.proprietor_id),
+    school_name: String(data.school_name ?? ""),
+    booked_by: String(data.booked_by ?? ""),
+    booked_at: String(data.booked_at ?? ""),
+  };
+}
+
+function rememberSlot(slot: InstallSlot | null, previousDate: string | null, nextDate: string | null) {
+  const slots = memoryStore().install_slots;
+  if (previousDate && previousDate !== nextDate) delete slots[previousDate];
+  if (nextDate && slot) slots[nextDate] = slot;
+  if (!nextDate && previousDate) delete slots[previousDate];
 }
 
 function blank(value: string | null | undefined): string | null {
@@ -112,6 +149,7 @@ export async function updateAttendee(
     throw new AttendeeError("Attendance status is invalid.", 400);
   }
 
+  const now = new Date().toISOString();
   const attendee: Attendee = {
     ...existing,
     contact_name:
@@ -125,12 +163,80 @@ export async function updateAttendee(
       input.transcription_notes !== undefined
         ? blank(input.transcription_notes)
         : existing.transcription_notes,
-    updated_at: new Date().toISOString(),
+    contacted: input.contacted ?? existing.contacted,
+    priority: input.priority ?? existing.priority,
+    install_date:
+      input.install_date !== undefined ? parseInstallDate(input.install_date) : existing.install_date,
+    updated_at: now,
     updated_by: name,
   };
 
-  await persist(attendee);
-  return attendee;
+  return writeAttendeeWithSlot(existing, attendee, name, now);
+}
+
+async function writeAttendeeWithSlot(
+  previous: Attendee,
+  row: Attendee,
+  actor: string,
+  now: string,
+): Promise<Attendee> {
+  const previousDate = previous.install_date ?? null;
+  const nextDate = row.install_date;
+  if (nextDate && nextDate !== previousDate && isPastInstallDate(nextDate)) {
+    throw new AttendeeError("That day has already passed.", 400);
+  }
+
+  if (nextDate === previousDate) {
+    const next = {
+      ...row,
+      install_booked_by: nextDate ? previous.install_booked_by ?? actor : null,
+    };
+    await persist(next);
+    return next;
+  }
+
+  const slot: InstallSlot | null = nextDate
+    ? {
+        date: nextDate,
+        proprietor_id: row.id,
+        school_name: row.school_name,
+        booked_by: actor,
+        booked_at: now,
+      }
+    : null;
+
+  if (isMemoryStore()) {
+    if (nextDate) {
+      const taken = memoryStore().install_slots[nextDate];
+      if (taken && taken.proprietor_id !== row.id) {
+        throw new AttendeeError(slotTakenMessage(taken), 409);
+      }
+    }
+    rememberSlot(slot, previousDate, nextDate);
+    const next = { ...row, install_booked_by: slot?.booked_by ?? null };
+    await persist(next);
+    return next;
+  }
+
+  const db = adminDb();
+  const attendeeRef = db.collection(COLLECTION).doc(row.id);
+  const nextRef = nextDate ? db.collection("install_slots").doc(nextDate) : null;
+  const previousRef = previousDate && previousDate !== nextDate
+    ? db.collection("install_slots").doc(previousDate)
+    : null;
+
+  await db.runTransaction(async (tx) => {
+    const takenSnap = nextRef ? await tx.get(nextRef) : null;
+    const taken = takenSnap ? asSlot(takenSnap.data()) : null;
+    if (taken && taken.proprietor_id !== row.id) {
+      throw new AttendeeError(slotTakenMessage(taken), 409);
+    }
+    if (previousRef) tx.delete(previousRef);
+    if (nextRef && slot && !taken) tx.set(nextRef, slot);
+    tx.set(attendeeRef, { ...row, install_booked_by: slot?.booked_by ?? null });
+  });
+
+  return { ...row, install_booked_by: slot?.booked_by ?? null };
 }
 
 export async function upsertSeedAttendee(
@@ -176,6 +282,10 @@ function attendeeFromSeed(row: SeedAttendee): Attendee {
     status: row.status,
     source_image: blank(row.source_image),
     transcription_notes: blank(row.transcription_notes),
+    contacted: false,
+    priority: false,
+    install_date: null,
+    install_booked_by: null,
     created_at: now,
     updated_at: now,
     updated_by: "Attendee seed",

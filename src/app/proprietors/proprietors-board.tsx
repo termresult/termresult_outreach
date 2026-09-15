@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, NotebookPen, Plus, X } from "lucide-react";
-import { EmptyState } from "@/components/ui/ds";
+import { CalendarDays, NotebookPen, Plus, Users, X } from "lucide-react";
+import { EmptyState, StatCard } from "@/components/ui/ds";
+import {
+  bookingFromAttendee,
+  bookingFromProprietor,
+  type CalendarBooking,
+} from "@/lib/proprietors/calendar-bookings";
+import type { Attendee } from "@/types/attendee";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
 import { formatInstallDay } from "@/lib/proprietors/install-date";
@@ -125,9 +131,11 @@ function when(iso: string): string {
 export function ProprietorsBoard({
   initial,
   openId = null,
+  initialAttendeeBookings = [],
 }: {
   initial: Proprietor[];
   openId?: string | null;
+  initialAttendeeBookings?: CalendarBooking[];
 }) {
   const [rows, setRows] = useState(initial);
   const [operator, setOperator] = useState("");
@@ -144,6 +152,8 @@ export function ProprietorsBoard({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [attendeeBookings, setAttendeeBookings] = useState(initialAttendeeBookings);
+  const sheetRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(NAME_KEY) ?? "";
@@ -166,11 +176,24 @@ export function ProprietorsBoard({
   }
 
   const refresh = useCallback(async () => {
-    const response = await fetch("/api/proprietors");
-    if (!response.ok) return;
-    const data = (await response.json()) as { proprietors: Proprietor[] };
-    setRows(data.proprietors);
-    setEditing((current) => current ? data.proprietors.find((row) => row.id === current.id) ?? current : current);
+    const [proprietorResponse, attendeeResponse] = await Promise.all([
+      fetch("/api/proprietors"),
+      fetch("/api/attendees"),
+    ]);
+    if (proprietorResponse.ok) {
+      const data = (await proprietorResponse.json()) as { proprietors: Proprietor[] };
+      setRows(data.proprietors);
+      setEditing((current) => current ? data.proprietors.find((row) => row.id === current.id) ?? current : current);
+    }
+    if (attendeeResponse.ok) {
+      const data = (await attendeeResponse.json()) as { attendees: Attendee[] };
+      setAttendeeBookings(
+        data.attendees.flatMap((row) => {
+          const booking = bookingFromAttendee(row);
+          return booking ? [booking] : [];
+        }),
+      );
+    }
   }, []);
 
   useEffect(() => {
@@ -179,6 +202,13 @@ export function ProprietorsBoard({
     }, 2000);
     return () => window.clearInterval(tick);
   }, [refresh]);
+
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    if (open && !sheet.open) sheet.showModal();
+    if (!open && sheet.open) sheet.close();
+  }, [open]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -211,7 +241,6 @@ export function ProprietorsBoard({
   }
 
   function openRow(row: Proprietor) {
-    if (needName()) return;
     setError(null);
     setNotice(null);
     setEditing(row);
@@ -289,8 +318,24 @@ export function ProprietorsBoard({
     { id: "talking", label: "In conversation" },
   ];
 
+  const installBookings = [
+    ...rows.flatMap((row) => {
+      const booking = bookingFromProprietor(row);
+      return booking ? [booking] : [];
+    }),
+    ...attendeeBookings,
+  ];
+
   return (
     <div className="mt-6">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          icon={<Users className="h-4 w-4" />}
+          value={String(rows.length)}
+          label="Proprietors"
+          hint="Every school on the conversation list"
+        />
+      </div>
       <div className="space-y-3 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm md:px-5">
         {!ready ? null : !operator || editingName ? (
           <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -424,7 +469,7 @@ export function ProprietorsBoard({
       ) : (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-            {visible.map((row) => (
+            {visible.map((row, index) => (
               <button
                 key={row.id}
                 type="button"
@@ -437,7 +482,9 @@ export function ProprietorsBoard({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{row.school_name}</p>
+                    <p className="text-sm font-bold text-slate-900">
+                      {index + 1}. {row.school_name}
+                    </p>
                     <p className="mt-1 text-xs text-slate-500">{row.proprietor_name || "No proprietor name"}</p>
                   </div>
                   <StatusBadge status={row.status} />
@@ -463,7 +510,7 @@ export function ProprietorsBoard({
             <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["School", "Proprietor", "Status", "First talk", "Install", "Students", "Fees", "Software", "Last talk"].map((label) => (
+                  {["#", "School", "Proprietor", "Status", "First talk", "Install", "Students", "Fees", "Software", "Last talk"].map((label) => (
                     <th
                       key={label}
                       className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
@@ -474,7 +521,7 @@ export function ProprietorsBoard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {visible.map((row) => (
+                {visible.map((row, index) => (
                   <tr
                     key={row.id}
                     className="cursor-pointer hover:bg-slate-50/50"
@@ -485,6 +532,7 @@ export function ProprietorsBoard({
                         : undefined
                     }
                   >
+                    <td className="w-12 px-4 py-3 tabular-nums text-slate-500">{index + 1}.</td>
                     <td className="px-4 py-3 font-medium text-slate-900">{row.school_name}</td>
                     <td className="px-4 py-3 text-slate-600">{row.proprietor_name || "—"}</td>
                     <td className="px-4 py-3">
@@ -516,14 +564,19 @@ export function ProprietorsBoard({
       )}
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute inset-0 bg-slate-900/20"
-            onClick={() => setOpen(false)}
-          />
-          <aside className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)]">
+        <dialog
+          ref={sheetRef}
+          aria-label={editing ? "Edit school" : "Add school"}
+          onCancel={(event) => {
+            event.preventDefault();
+            setOpen(false);
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+          className="fixed inset-0 z-50 m-0 ml-auto h-full max-h-none w-full max-w-lg overflow-hidden border-0 bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)] backdrop:bg-slate-900/20"
+        >
+          <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -562,7 +615,7 @@ export function ProprietorsBoard({
               <InstallDateField
                 value={form.install_date}
                 ownerId={editing?.id ?? null}
-                rows={rows}
+                bookings={installBookings}
                 onChange={(install_date) => setForm({ ...form, install_date })}
               />
               <label className="block">
@@ -639,8 +692,8 @@ export function ProprietorsBoard({
                 {busy ? "Saving…" : "Save"}
               </button>
             </div>
-          </aside>
-        </div>
+          </div>
+        </dialog>
       ) : null}
     </div>
   );

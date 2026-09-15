@@ -2,27 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { calendarBookingMap, type CalendarBooking } from "@/lib/proprietors/calendar-bookings";
 import { formatInstallDay, todayInLagos } from "@/lib/proprietors/install-date";
-import type { Proprietor } from "@/types/proprietor";
 import { InstallMonthGrid } from "./install-month-grid";
 
 export function InstallDateField({
   value,
   ownerId,
-  rows,
+  bookings,
   onChange,
 }: {
   value: string;
   ownerId: string | null;
-  rows: Proprietor[];
+  bookings: CalendarBooking[];
   onChange: (date: string) => void;
 }) {
   const today = todayInLagos();
-  const taken = new Map(
-    rows
-      .filter((row) => row.install_date)
-      .map((row) => [row.install_date as string, row]),
-  );
+  const taken = calendarBookingMap(bookings);
   const owner = value ? taken.get(value) : undefined;
   const blocked = owner && owner.id !== ownerId;
   const [year, month] = (value || today).split("-").map(Number);

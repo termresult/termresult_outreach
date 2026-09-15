@@ -28,6 +28,10 @@ function isAttendee(value: unknown): value is Attendee {
     (ATTENDANCE_STATUSES as readonly unknown[]).includes(attendee.status) &&
     isNullableString(attendee.source_image) &&
     isNullableString(attendee.transcription_notes) &&
+    (attendee.contacted === undefined || typeof attendee.contacted === "boolean") &&
+    (attendee.priority === undefined || typeof attendee.priority === "boolean") &&
+    (attendee.install_date === undefined || isNullableString(attendee.install_date)) &&
+    (attendee.install_booked_by === undefined || isNullableString(attendee.install_booked_by)) &&
     typeof attendee.created_at === "string" &&
     typeof attendee.updated_at === "string" &&
     typeof attendee.updated_by === "string"

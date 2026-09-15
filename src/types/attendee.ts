@@ -12,6 +12,10 @@ export type Attendee = {
   status: AttendanceStatus;
   source_image: string | null;
   transcription_notes: string | null;
+  contacted: boolean;
+  priority: boolean;
+  install_date: string | null;
+  install_booked_by: string | null;
   created_at: string;
   updated_at: string;
   updated_by: string;
@@ -24,4 +28,7 @@ export type AttendeeInput = {
   email?: string | null;
   status?: AttendanceStatus;
   transcription_notes?: string | null;
+  contacted?: boolean;
+  priority?: boolean;
+  install_date?: string | null;
 };
