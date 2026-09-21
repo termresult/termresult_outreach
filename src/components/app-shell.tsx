@@ -16,7 +16,9 @@ import {
   NotebookPen,
   CalendarDays,
   ClipboardCheck,
+  Bell,
 } from "lucide-react";
+import { ReminderRail } from "@/components/reminder-rail";
 import { BRAND, hexToRgba } from "@/lib/color";
 
 const NAV = [
@@ -24,6 +26,7 @@ const NAV = [
   { href: "/proprietors", label: "Proprietors", icon: NotebookPen },
   { href: "/proprietors/calendar", label: "Install calendar", icon: CalendarDays },
   { href: "/attendees", label: "Attendees", icon: ClipboardCheck },
+  { href: "/reminders", label: "Reminders", icon: Bell },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
@@ -165,7 +168,8 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="md:pl-64">
+      <ReminderRail />
+      <div className="reminder-pad md:pl-64">
         <header className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3 md:hidden">
           <p className="font-bold text-slate-900">Outreach</p>
           <button

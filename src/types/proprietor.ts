@@ -4,6 +4,7 @@ export const FOLLOW_UP_STATUSES = [
   "email_sent",
   "call_scheduled",
   "closed_not_interested",
+  "installed",
 ] as const;
 
 export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
@@ -14,6 +15,7 @@ export const FOLLOW_UP_LABELS: Record<FollowUpStatus, string> = {
   email_sent: "Email sent",
   call_scheduled: "Call scheduled",
   closed_not_interested: "Closed - not interested",
+  installed: "Installed",
 };
 
 export const SCHOOL_SOFTWARE = ["none", "b4", "other"] as const;

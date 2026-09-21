@@ -6,11 +6,12 @@ import {
   createProprietor,
   getProprietor,
   lockProprietor,
+  proprietorStats,
   updateProprietor,
 } from "@/lib/store/proprietors";
 import { resetMemoryStore, memoryStore } from "@/lib/store/memory";
 import { searchSchools, todayInLagos } from "@/lib/proprietors/install-date";
-import { LOCK_MS, firstTalkedBy, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
+import { LOCK_MS, firstTalkedBy, isFollowUpStatus, isLockActive, withEffectiveLock, type Proprietor } from "@/types/proprietor";
 
 function dayFromToday(offset: number): string {
   const [year, month, day] = todayInLagos().split("-").map(Number);
@@ -123,6 +124,16 @@ describe("proprietor store", () => {
     expect(saved.student_count).toBe(200);
     expect(saved.average_fees).toBe(85000);
     expect(saved.software).toBe("b4");
+  });
+
+  it("marks a school installed and counts it in stats", async () => {
+    expect(isFollowUpStatus("installed")).toBe(true);
+    const created = await createProprietor({ school_name: "LEA Maitama" }, "Iyanu");
+    const saved = await updateProprietor(created.proprietor.id, { status: "installed" }, "Iyanu");
+    expect(saved.status).toBe("installed");
+    const stats = await proprietorStats();
+    expect(stats.installed).toBe(1);
+    expect(stats.already_talked).toBe(1);
   });
 
   it("clears click-only talk state when nobody has been saved as contact person", async () => {

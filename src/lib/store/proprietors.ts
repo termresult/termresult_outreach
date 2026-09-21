@@ -233,6 +233,7 @@ export async function proprietorStats() {
   return {
     schools: rows.length,
     already_talked: rows.filter((row) => row.status !== "not_yet_contacted").length,
+    installed: rows.filter((row) => row.status === "installed").length,
     upcoming_installs: rows.filter((row) => row.install_date && row.install_date >= today).length,
   };
 }

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, Megaphone, Mail, NotebookPen, Phone, Users } from "lucide-react";
+import { Bell, CalendarDays, CircleCheck, Megaphone, Mail, NotebookPen, Phone, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader, StatCard } from "@/components/ui/ds";
 import { getSessionUser } from "@/lib/auth/session";
 import { contactStats } from "@/lib/store/contacts";
 import { campaignCount } from "@/lib/store/outreach";
 import { proprietorStats } from "@/lib/store/proprietors";
+import { reminderStats } from "@/lib/store/reminders";
 import { BRAND } from "@/lib/color";
 
 export default async function HomePage() {
@@ -16,6 +17,7 @@ export default async function HomePage() {
   const stats = await contactStats();
   const campaigns = await campaignCount();
   const proprietors = await proprietorStats();
+  const reminders = await reminderStats();
   const cards = [
     { label: "Schools", value: String(stats.schools), hint: "Imported so far", icon: Users },
     { label: "With phone", value: String(stats.with_phone), hint: "WhatsApp and SMS", icon: Phone },
@@ -30,10 +32,26 @@ export default async function HomePage() {
       icon: NotebookPen,
     },
     {
+      label: "Installed",
+      value: String(proprietors.installed),
+      hint: proprietors.installed ? "Schools live on TermResult" : "None closed yet",
+      icon: CircleCheck,
+    },
+    {
       label: "Installs booked",
       value: String(proprietors.upcoming_installs),
       hint: proprietors.upcoming_installs ? "Upcoming installation days" : "None booked yet",
       icon: CalendarDays,
+    },
+    {
+      label: "Reminders",
+      value: String(reminders.open),
+      hint: reminders.overdue
+        ? `${reminders.overdue} overdue`
+        : reminders.due_today
+          ? `${reminders.due_today} due today`
+          : "Nothing waiting",
+      icon: Bell,
     },
   ];
 
@@ -73,6 +91,12 @@ export default async function HomePage() {
           className="inline-flex h-10 items-center rounded-full border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm"
         >
           Install calendar
+        </Link>
+        <Link
+          href="/reminders"
+          className="inline-flex h-10 items-center rounded-full border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm"
+        >
+          Reminders
         </Link>
         {stats.schools === 0 ? (
           <Link

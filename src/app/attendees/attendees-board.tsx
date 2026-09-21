@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
+  Bell,
   CheckCircle2,
   ClipboardList,
   FileWarning,
@@ -14,6 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { requestRemind } from "@/lib/reminders/open";
 import { EmptyState, StatCard } from "@/components/ui/ds";
 import { FormSelect } from "@/components/ui/form-select";
 import {
@@ -751,7 +753,25 @@ function EditAttendeeDialog({
           </p>
         </div>
 
-        <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+        <div className="space-y-2 border-t border-slate-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={() => {
+              requestRemind({
+                school_id: attendee.id,
+                school_name: form.school_name || attendee.school_name,
+                school_source: "attendee",
+                phone: form.phone || attendee.phone,
+              });
+              dismiss();
+            }}
+            disabled={busy}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm disabled:opacity-50"
+          >
+            <Bell className="h-4 w-4" />
+            Remind me
+          </button>
+          <div className="flex gap-3">
           <button
             type="button"
             onClick={() => dismiss()}
@@ -768,6 +788,7 @@ function EditAttendeeDialog({
           >
             {busy ? "Saving…" : "Save changes"}
           </button>
+          </div>
         </div>
       </form>
     </dialog>

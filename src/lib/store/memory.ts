@@ -5,6 +5,7 @@ import type { Proprietor } from "@/types/proprietor";
 import type { OutreachSettings } from "@/lib/store/settings";
 import type { InstallSlot } from "@/lib/proprietors/install-date";
 import type { Attendee } from "@/types/attendee";
+import type { Reminder } from "@/types/reminder";
 
 export type MemoryStore = {
   contacts: Record<string, OutreachContact>;
@@ -15,6 +16,7 @@ export type MemoryStore = {
   proprietors: Record<string, Proprietor>;
   install_slots: Record<string, InstallSlot>;
   attendees: Record<string, Attendee>;
+  reminders: Record<string, Reminder>;
 };
 
 const memory: MemoryStore = {
@@ -26,6 +28,7 @@ const memory: MemoryStore = {
   proprietors: {},
   install_slots: {},
   attendees: {},
+  reminders: {},
 };
 
 export function useMemoryStore(): boolean {
@@ -45,4 +48,5 @@ export function resetMemoryStore() {
   memory.proprietors = {};
   memory.install_slots = {};
   memory.attendees = {};
+  memory.reminders = {};
 }

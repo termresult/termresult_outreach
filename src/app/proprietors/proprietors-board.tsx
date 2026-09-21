@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, NotebookPen, Plus, Users, X } from "lucide-react";
+import { Bell, CalendarDays, CircleCheck, NotebookPen, Plus, Users, X } from "lucide-react";
+import { requestRemind } from "@/lib/reminders/open";
 import { EmptyState, StatCard } from "@/components/ui/ds";
 import {
   bookingFromAttendee,
@@ -31,7 +32,7 @@ import {
 
 const NAME_KEY = OPERATOR_STORAGE_KEY;
 
-type Filter = "all" | "not_yet" | "talked" | "talking";
+type Filter = "all" | "not_yet" | "talked" | "talking" | "installed";
 type FirstTalker = "all" | (typeof OPERATOR_NAMES)[number];
 
 type FormState = {
@@ -108,6 +109,8 @@ function statusTone(status: FollowUpStatus): { bg: string; text: string } {
       return { bg: "#F5F3FF", text: "#6D28D9" };
     case "closed_not_interested":
       return { bg: "#FFF1F2", text: "#BE123C" };
+    case "installed":
+      return { bg: "#ECFDF5", text: "#047857" };
     default:
       return { bg: "#F8FAFC", text: "#475569" };
   }
@@ -216,6 +219,7 @@ export function ProprietorsBoard({
       if (filter === "not_yet" && row.status !== "not_yet_contacted") return false;
       if (filter === "talked" && !alreadyTalked(row.status)) return false;
       if (filter === "talking" && !isLockActive(row)) return false;
+      if (filter === "installed" && row.status !== "installed") return false;
       if (firstTalker !== "all" && firstTalkedBy(row) !== firstTalker) return false;
       if (!q) return true;
       return [row.school_name, row.proprietor_name, row.phone, row.email, row.contact_person]
@@ -316,6 +320,7 @@ export function ProprietorsBoard({
     { id: "not_yet", label: "Not yet contacted" },
     { id: "talked", label: "Already talked" },
     { id: "talking", label: "In conversation" },
+    { id: "installed", label: "Installed" },
   ];
 
   const installBookings = [
@@ -334,6 +339,12 @@ export function ProprietorsBoard({
           value={String(rows.length)}
           label="Proprietors"
           hint="Every school on the conversation list"
+        />
+        <StatCard
+          icon={<CircleCheck className="h-4 w-4" />}
+          value={String(rows.filter((row) => row.status === "installed").length)}
+          label="Installed"
+          hint="Closed — school is live on TermResult"
         />
       </div>
       <div className="space-y-3 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm md:px-5">
@@ -682,6 +693,24 @@ export function ProprietorsBoard({
               </label>
             </div>
             <div className="border-t border-slate-100 px-5 py-4">
+              {editing ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    requestRemind({
+                      school_id: editing.id,
+                      school_name: form.school_name || editing.school_name,
+                      school_source: "proprietor",
+                      phone: form.phone || editing.phone,
+                    });
+                    setOpen(false);
+                  }}
+                  className="mb-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm"
+                >
+                  <Bell className="h-4 w-4" />
+                  Remind me
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={busy}
