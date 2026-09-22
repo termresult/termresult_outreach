@@ -84,6 +84,40 @@ describe("reminders", () => {
     expect(stats.overdue).toBe(1);
   });
 
+  it("edits reminder fields one at a time", async () => {
+    const reminder = await createReminder(
+      {
+        school_name: "Old Academy",
+        kind: "call",
+        note: "First note",
+        due_date: "2026-09-22",
+        due_time: "10:00",
+      },
+      "Iyanu",
+    );
+
+    const kind = await updateReminder(reminder.id, { kind: "other" }, "Iyanu");
+    expect(kind.kind).toBe("other");
+    expect(kind.school_name).toBe("Old Academy");
+    expect(kind.due_at).toBe("2026-09-22T10:00:00+01:00");
+
+    const when = await updateReminder(reminder.id, { due_time: "16:45" }, "Iyanu");
+    expect(when.due_at).toBe("2026-09-22T16:45:00+01:00");
+    expect(when.kind).toBe("other");
+
+    const note = await updateReminder(reminder.id, { note: "Send the quote" }, "Iyanu");
+    expect(note.note).toBe("Send the quote");
+    expect(note.due_at).toBe("2026-09-22T16:45:00+01:00");
+
+    const school = await updateReminder(
+      reminder.id,
+      { school_id: null, school_source: "custom", school_name: "New Academy" },
+      "Iyanu",
+    );
+    expect(school.school_name).toBe("New Academy");
+    expect(school.note).toBe("Send the quote");
+  });
+
   it("deletes a reminder", async () => {
     const reminder = await createReminder(
       { school_name: "Temp School", due_date: "2026-09-22", due_time: "11:00" },

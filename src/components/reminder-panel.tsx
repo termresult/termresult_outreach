@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, Check, Phone, Plus, Trash2 } from "lucide-react";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
-import { defaultReminderSlot, formatReminderWhen, isReminderOverdue } from "@/lib/reminders/when";
+import { defaultReminderSlot, formatReminderWhen, isReminderOverdue, splitLagosDateTime } from "@/lib/reminders/when";
 import {
   OPERATOR_NAMES,
   OPERATOR_STORAGE_KEY,
@@ -15,6 +15,7 @@ import {
   REMINDER_KINDS,
   reminderSchoolKey,
   type Reminder,
+  type ReminderInput,
   type ReminderKind,
   type ReminderSchool,
 } from "@/types/reminder";
@@ -167,7 +168,7 @@ export function ReminderPanel({
     }
   }
 
-  async function patch(id: string, body: { done?: boolean }) {
+  async function patch(id: string, body: Partial<ReminderInput> & { done?: boolean }) {
     if (!operator) {
       setError("Save who you are first.");
       return;
@@ -381,56 +382,233 @@ export function ReminderPanel({
           </div>
         ) : (
           <div className="space-y-2">
-            {visible.map((row) => {
-              const overdue = !row.done && isReminderOverdue(row.due_at);
-              return (
-                <div
-                  key={row.id}
-                  className="rounded-xl border bg-white p-3 shadow-sm"
-                  style={{ borderColor: overdue ? "#fecdd3" : "#f1f5f9" }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">{row.school_name}</p>
-                      <p className="mt-0.5 text-xs font-semibold" style={{ color: overdue ? "#be123c" : BRAND }}>
-                        {REMINDER_KIND_LABELS[row.kind]}
-                        {overdue ? " · Overdue" : ""}
-                        {row.done ? " · Done" : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">{formatReminderWhen(row.due_at)}</p>
-                      {row.note ? <p className="mt-1 text-sm text-slate-700">{row.note}</p> : null}
-                      {row.phone ? (
-                        <a href={`tel:${row.phone}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: BRAND }}>
-                          <Phone className="h-3 w-3" />
-                          {row.phone}
-                        </a>
-                      ) : null}
-                      <p className="mt-1 text-[11px] text-slate-400">Set by {row.created_by}</p>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => void patch(row.id, { done: !row.done })}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
-                        aria-label={row.done ? "Reopen reminder" : "Mark reminder done"}
-                      >
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void remove(row.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
-                        aria-label="Delete reminder"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {visible.map((row) => (
+              <ReminderCard
+                key={row.id}
+                row={row}
+                schools={schools}
+                compact={compact}
+                onPatch={(body) => patch(row.id, body)}
+                onRemove={() => remove(row.id)}
+              />
+            ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function reminderSchoolKeyFor(row: Reminder): string {
+  if (row.school_id && row.school_source !== "custom") {
+    return reminderSchoolKey(row.school_source, row.school_id);
+  }
+  return "";
+}
+
+function ReminderCard({
+  row,
+  schools,
+  compact,
+  onPatch,
+  onRemove,
+}: {
+  row: Reminder;
+  schools: ReminderSchool[];
+  compact: boolean;
+  onPatch: (body: Partial<ReminderInput> & { done?: boolean }) => Promise<void>;
+  onRemove: () => Promise<void>;
+}) {
+  const due = splitLagosDateTime(row.due_at);
+  const overdue = !row.done && isReminderOverdue(row.due_at);
+  const [schoolKey, setSchoolKey] = useState(() => reminderSchoolKeyFor(row));
+  const [schoolQuery, setSchoolQuery] = useState(row.school_name);
+  const [kind, setKind] = useState(row.kind);
+  const [dueDate, setDueDate] = useState(due.date);
+  const [dueTime, setDueTime] = useState(due.time);
+  const [note, setNote] = useState(row.note ?? "");
+
+  useEffect(() => {
+    const next = splitLagosDateTime(row.due_at);
+    setSchoolKey(reminderSchoolKeyFor(row));
+    setSchoolQuery(row.school_name);
+    setKind(row.kind);
+    setDueDate(next.date);
+    setDueTime(next.time);
+    setNote(row.note ?? "");
+  }, [row]);
+
+  const matches = useMemo(() => {
+    const q = schoolQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return schools
+      .filter((item) => {
+        return [item.school_name, item.phone].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+      })
+      .slice(0, 6);
+  }, [schoolQuery, schools]);
+
+  const selectedSchool = schools.find((item) => item.key === schoolKey) ?? null;
+
+  async function saveSchool() {
+    if (selectedSchool) {
+      await onPatch({
+        school_id: selectedSchool.id,
+        school_source: selectedSchool.source,
+        school_name: selectedSchool.school_name,
+        phone: selectedSchool.phone,
+      });
+      return;
+    }
+    const name = schoolQuery.trim();
+    if (!name) return;
+    await onPatch({
+      school_id: null,
+      school_source: "custom",
+      school_name: name,
+    });
+  }
+
+  return (
+    <div
+      className="rounded-xl border bg-white p-3 shadow-sm"
+      style={{ borderColor: overdue ? "#fecdd3" : "#f1f5f9" }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold" style={{ color: overdue ? "#be123c" : BRAND }}>
+            {REMINDER_KIND_LABELS[row.kind]}
+            {overdue ? " · Overdue" : ""}
+            {row.done ? " · Done" : ""}
+            {` · ${formatReminderWhen(row.due_at)}`}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">Set by {row.created_by} · edit any field</p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={() => void onPatch({ done: !row.done })}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+            aria-label={row.done ? "Reopen reminder" : "Mark reminder done"}
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void onRemove()}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+            aria-label="Delete reminder"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">School</span>
+          <input
+            value={schoolQuery}
+            onChange={(event) => {
+              setSchoolQuery(event.target.value);
+              setSchoolKey("");
+            }}
+            onBlur={() => void saveSchool()}
+            className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+          />
+        </label>
+        {matches.length && schoolQuery.trim() !== row.school_name ? (
+          <div className="max-h-32 overflow-y-auto rounded-xl border border-slate-100">
+            {matches.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  setSchoolKey(item.key);
+                  setSchoolQuery(item.school_name);
+                  void onPatch({
+                    school_id: item.id,
+                    school_source: item.source,
+                    school_name: item.school_name,
+                    phone: item.phone,
+                  });
+                }}
+                className="flex w-full flex-col items-start px-3 py-2 text-left text-sm"
+              >
+                <span className="font-semibold text-slate-900">{item.school_name}</span>
+                <span className="text-xs text-slate-500">
+                  {item.source === "proprietor" ? "Proprietor" : "Attendee"}
+                  {item.phone ? ` · ${item.phone}` : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">What for</span>
+          <FormSelect
+            className="mt-1 h-9"
+            value={kind}
+            onChange={(event) => {
+              const next = event.target.value as ReminderKind;
+              setKind(next);
+              void onPatch({ kind: next });
+            }}
+          >
+            {REMINDER_KINDS.map((value) => (
+              <option key={value} value={value}>
+                {REMINDER_KIND_LABELS[value]}
+              </option>
+            ))}
+          </FormSelect>
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</span>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(event) => {
+                const next = event.target.value;
+                setDueDate(next);
+                void onPatch({ due_date: next, due_time: dueTime });
+              }}
+              className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time</span>
+            <input
+              type="time"
+              value={dueTime}
+              onChange={(event) => {
+                const next = event.target.value;
+                setDueTime(next);
+                void onPatch({ due_date: dueDate, due_time: next });
+              }}
+              className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+            />
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Note</span>
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            onBlur={() => {
+              if ((row.note ?? "") !== note) void onPatch({ note });
+            }}
+            rows={compact ? 2 : 3}
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+          />
+        </label>
+        {row.phone ? (
+          <a href={`tel:${row.phone}`} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: BRAND }}>
+            <Phone className="h-3 w-3" />
+            {row.phone}
+          </a>
+        ) : null}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/ui/ds";
 import { getSessionUser } from "@/lib/auth/session";
-import { filterAttendees, parseAttendeeQuery } from "@/lib/attendees/query";
+import { parseAttendeeQuery } from "@/lib/attendees/query";
 import { bookingFromProprietor } from "@/lib/proprietors/calendar-bookings";
 import { listAttendeesWithSeedBaseline } from "@/lib/store/attendees";
 import { listProprietors } from "@/lib/store/proprietors";
@@ -28,7 +28,6 @@ export default async function AttendeesPage({
     listAttendeesWithSeedBaseline(),
     listProprietors(),
   ]);
-  const rows = filterAttendees(all, query);
   const totals = {
     all: all.length,
     attended: all.filter((row) => row.status === "attended").length,
@@ -47,8 +46,8 @@ export default async function AttendeesPage({
       />
 
       <AttendeesBoard
-        key={`${query.q ?? ""}:${query.status ?? ""}:${query.outreach ?? ""}:${query.flag ?? ""}:${openId ?? ""}`}
-        initialRows={rows}
+        key={openId ?? "attendees"}
+        initialRows={all}
         initialTotals={totals}
         query={query}
         openId={openId}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Bell,
   CheckCircle2,
@@ -113,6 +112,21 @@ export function AttendeesBoard({
 }) {
   const [rows, setRows] = useState(initialRows);
   const [totals, setTotals] = useState(initialTotals);
+  const [liveQuery, setLiveQuery] = useState(query);
+  const visible = useMemo(() => filterAttendees(rows, liveQuery), [rows, liveQuery]);
+
+  function applyFilters(next: AttendeeQuery) {
+    setLiveQuery(next);
+    const params = new URLSearchParams();
+    const q = next.q?.trim() ?? "";
+    if (q) params.set("q", q);
+    if (next.status) params.set("status", next.status);
+    if (next.outreach) params.set("outreach", next.outreach);
+    if (next.flag) params.set("flag", next.flag);
+    if (openId) params.set("open", openId);
+    const search = params.toString();
+    window.history.replaceState(null, "", search ? `/attendees?${search}` : "/attendees");
+  }
   const opened = openId ? initialRows.find((row) => row.id === openId) ?? null : null;
   const [editing, setEditing] = useState<EditingState | null>(
     opened ? { attendee: opened, trigger: null } : null,
@@ -130,7 +144,7 @@ export function AttendeesBoard({
       const updated = current.map((row) =>
         row.id === attendee.id ? attendee : row,
       );
-      return filterAttendees(updated, query);
+      return updated;
     });
     setTotals((current) => ({
       ...current,
@@ -198,10 +212,10 @@ export function AttendeesBoard({
       </div>
 
       <form
-        method="get"
+        onSubmit={(event) => event.preventDefault()}
         className="mt-6 rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
       >
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px_auto]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px]">
           <label>
             <span className="sr-only">Search attendees</span>
             <span className="relative block">
@@ -211,7 +225,8 @@ export function AttendeesBoard({
               />
               <input
                 name="q"
-                defaultValue={query.q}
+                value={liveQuery.q ?? ""}
+                onChange={(event) => applyFilters({ ...liveQuery, q: event.target.value })}
                 placeholder="Search school, contact, phone, or email"
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
@@ -219,7 +234,16 @@ export function AttendeesBoard({
           </label>
           <label>
             <span className="sr-only">Attendance status</span>
-            <FormSelect name="status" defaultValue={query.status}>
+            <FormSelect
+              name="status"
+              value={liveQuery.status ?? ""}
+              onChange={(event) =>
+                applyFilters({
+                  ...liveQuery,
+                  status: event.target.value as AttendeeQuery["status"],
+                })
+              }
+            >
               <option value="">All attendance</option>
               <option value="attended">Attended</option>
               <option value="did_not_attend">Did not attend</option>
@@ -227,7 +251,16 @@ export function AttendeesBoard({
           </label>
           <label>
             <span className="sr-only">Contacted</span>
-            <FormSelect name="outreach" defaultValue={query.outreach}>
+            <FormSelect
+              name="outreach"
+              value={liveQuery.outreach ?? ""}
+              onChange={(event) =>
+                applyFilters({
+                  ...liveQuery,
+                  outreach: event.target.value as AttendeeQuery["outreach"],
+                })
+              }
+            >
               <option value="">All follow-up</option>
               <option value="not_contacted">Not contacted</option>
               <option value="contacted">Contacted</option>
@@ -235,34 +268,37 @@ export function AttendeesBoard({
           </label>
           <label>
             <span className="sr-only">Priority and install</span>
-            <FormSelect name="flag" defaultValue={query.flag}>
+            <FormSelect
+              name="flag"
+              value={liveQuery.flag ?? ""}
+              onChange={(event) =>
+                applyFilters({
+                  ...liveQuery,
+                  flag: event.target.value as AttendeeQuery["flag"],
+                })
+              }
+            >
               <option value="">All flags</option>
               <option value="priority">Priority</option>
               <option value="booked">Install booked</option>
               <option value="unbooked">No install date</option>
             </FormSelect>
           </label>
-          <button
-            type="submit"
-            className="h-10 rounded-full px-5 text-sm font-semibold text-white shadow-sm"
-            style={{ backgroundColor: BRAND }}
-          >
-            Apply filters
-          </button>
         </div>
-        {query.q || query.status || query.outreach || query.flag ? (
-          <Link
-            href="/attendees"
+        {liveQuery.q || liveQuery.status || liveQuery.outreach || liveQuery.flag ? (
+          <button
+            type="button"
+            onClick={() => applyFilters({ q: "", status: "", outreach: "", flag: "" })}
             className="mt-3 inline-flex text-sm font-semibold"
             style={{ color: BRAND }}
           >
             Clear filters
-          </Link>
+          </button>
         ) : null}
       </form>
 
       <p className="mt-4 text-sm text-slate-500" aria-live="polite">
-        Showing {rows.length} of {totals.all} schools.
+        Showing {visible.length} of {totals.all} schools.
       </p>
 
       {totals.all === 0 ? (
@@ -271,7 +307,7 @@ export function AttendeesBoard({
           title="No attendees yet"
           description="Seed the reviewed event sheets to add attendee records."
         />
-      ) : rows.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           icon={<Search className="h-4 w-4" />}
           title="No matches"
@@ -280,7 +316,7 @@ export function AttendeesBoard({
       ) : (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-            {rows.map((row, index) => (
+            {visible.map((row, index) => (
               <article
                 key={row.id}
                 className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
@@ -344,7 +380,7 @@ export function AttendeesBoard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {rows.map((row, index) => (
+                {visible.map((row, index) => (
                   <tr key={row.id} className="align-top hover:bg-slate-50/50">
                     <td className="w-12 px-4 py-3 tabular-nums text-slate-500">
                       {index + 1}.
