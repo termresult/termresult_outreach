@@ -50,7 +50,9 @@ export default async function HomePage() {
         ? `${reminders.overdue} overdue`
         : reminders.due_today
           ? `${reminders.due_today} due today`
-          : "Nothing waiting",
+          : reminders.open
+            ? "Still open"
+            : "Nothing waiting",
       icon: Bell,
     },
   ];
@@ -66,6 +68,7 @@ export default async function HomePage() {
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((stat) => {
           const Icon = stat.icon;
+          const urgent = stat.label === "Reminders" && reminders.open > 0;
           return (
             <StatCard
               key={stat.label}
@@ -73,6 +76,7 @@ export default async function HomePage() {
               value={stat.value}
               label={stat.label}
               hint={stat.hint}
+              urgent={urgent}
             />
           );
         })}

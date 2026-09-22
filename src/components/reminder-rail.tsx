@@ -75,13 +75,13 @@ export function ReminderRail() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="fixed bottom-5 right-5 z-30 inline-flex h-12 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white shadow-lg xl:hidden"
-        style={{ backgroundColor: BRAND }}
+        className={`fixed bottom-5 right-5 z-30 inline-flex h-12 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white shadow-lg xl:hidden ${badge ? "reminder-icon-pulse" : ""}`}
+        style={{ backgroundColor: badge ? "#e11d48" : BRAND }}
       >
         <Bell className="h-4 w-4" />
         Reminders
         {badge ? (
-          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold" style={{ color: BRAND }}>
+          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-rose-700">
             {badge}
           </span>
         ) : null}
@@ -91,8 +91,13 @@ export function ReminderRail() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed top-1/2 right-0 z-20 hidden -translate-y-1/2 rounded-l-xl border border-r-0 border-slate-200 bg-white px-2 py-4 text-xs font-semibold shadow-sm xl:flex"
-          style={{ color: BRAND, writingMode: "vertical-rl" }}
+          className={`fixed top-1/2 right-0 z-20 hidden -translate-y-1/2 rounded-l-xl border border-r-0 px-2 py-4 text-xs font-semibold shadow-sm xl:flex ${badge ? "reminder-icon-pulse" : ""}`}
+          style={{
+            writingMode: "vertical-rl",
+            color: badge ? "#be123c" : BRAND,
+            backgroundColor: badge ? "#fff1f2" : "#fff",
+            borderColor: badge ? "#fb7185" : "#e2e8f0",
+          }}
         >
           Reminders{badge ? ` · ${badge}` : ""}
         </button>

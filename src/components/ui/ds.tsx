@@ -1,15 +1,29 @@
 import type { ReactNode } from "react";
 import { BRAND, hexToRgba } from "@/lib/color";
 
-export function IconBox({ children }: { children: ReactNode }) {
+export function IconBox({
+  children,
+  urgent = false,
+}: {
+  children: ReactNode;
+  urgent?: boolean;
+}) {
   return (
     <div
-      className="flex h-9 w-9 items-center justify-center rounded-xl"
-      style={{
-        backgroundColor: hexToRgba(BRAND, 0.08),
-        border: `1px solid ${hexToRgba(BRAND, 0.15)}`,
-        color: BRAND,
-      }}
+      className={`flex h-9 w-9 items-center justify-center rounded-xl ${urgent ? "reminder-icon-pulse" : ""}`}
+      style={
+        urgent
+          ? {
+              backgroundColor: "#fff1f2",
+              border: "1px solid #fecdd3",
+              color: "#be123c",
+            }
+          : {
+              backgroundColor: hexToRgba(BRAND, 0.08),
+              border: `1px solid ${hexToRgba(BRAND, 0.15)}`,
+              color: BRAND,
+            }
+      }
     >
       {children}
     </div>
@@ -41,15 +55,20 @@ export function StatCard({
   value,
   label,
   hint,
+  urgent = false,
 }: {
   icon: ReactNode;
   value: string;
   label: string;
   hint: string;
+  urgent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-      <IconBox>{icon}</IconBox>
+    <div
+      className={`rounded-xl border bg-white p-5 shadow-sm ${urgent ? "reminder-pulse" : ""}`}
+      style={urgent ? undefined : { borderColor: "#f1f5f9" }}
+    >
+      <IconBox urgent={urgent}>{icon}</IconBox>
       <p className="mt-4 text-2xl font-bold text-slate-900">{value}</p>
       <p className="text-sm font-bold text-slate-900">{label}</p>
       <p className="mt-1 text-xs text-slate-500">{hint}</p>

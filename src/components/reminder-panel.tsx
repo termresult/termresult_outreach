@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, Check, Phone, Plus, Trash2 } from "lucide-react";
+import { Bell, Check, Pencil, Phone, Plus, Trash2, X } from "lucide-react";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
 import { defaultReminderSlot, formatReminderWhen, isReminderOverdue, splitLagosDateTime } from "@/lib/reminders/when";
@@ -58,6 +58,7 @@ export function ReminderPanel({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(OPERATOR_STORAGE_KEY) ?? "";
@@ -388,7 +389,13 @@ export function ReminderPanel({
                 row={row}
                 schools={schools}
                 compact={compact}
-                onPatch={(body) => patch(row.id, body)}
+                editing={editingId === row.id}
+                onEdit={() => setEditingId(row.id)}
+                onCloseEdit={() => setEditingId(null)}
+                onPatch={async (body) => {
+                  await patch(row.id, body);
+                  if (body.done === true) setEditingId(null);
+                }}
                 onRemove={() => remove(row.id)}
               />
             ))}
@@ -410,17 +417,24 @@ function ReminderCard({
   row,
   schools,
   compact,
+  editing,
+  onEdit,
+  onCloseEdit,
   onPatch,
   onRemove,
 }: {
   row: Reminder;
   schools: ReminderSchool[];
   compact: boolean;
+  editing: boolean;
+  onEdit: () => void;
+  onCloseEdit: () => void;
   onPatch: (body: Partial<ReminderInput> & { done?: boolean }) => Promise<void>;
   onRemove: () => Promise<void>;
 }) {
   const due = splitLagosDateTime(row.due_at);
-  const overdue = !row.done && isReminderOverdue(row.due_at);
+  const pending = !row.done;
+  const overdue = pending && isReminderOverdue(row.due_at);
   const [schoolKey, setSchoolKey] = useState(() => reminderSchoolKeyFor(row));
   const [schoolQuery, setSchoolQuery] = useState(row.school_name);
   const [kind, setKind] = useState(row.kind);
@@ -471,20 +485,56 @@ function ReminderCard({
 
   return (
     <div
-      className="rounded-xl border bg-white p-3 shadow-sm"
-      style={{ borderColor: overdue ? "#fecdd3" : "#f1f5f9" }}
+      className={`rounded-xl border bg-white p-3 shadow-sm ${pending ? "reminder-pulse" : ""}`}
+      style={pending ? undefined : { borderColor: "#f1f5f9" }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold" style={{ color: overdue ? "#be123c" : BRAND }}>
-            {REMINDER_KIND_LABELS[row.kind]}
-            {overdue ? " · Overdue" : ""}
-            {row.done ? " · Done" : ""}
-            {` · ${formatReminderWhen(row.due_at)}`}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400">Set by {row.created_by} · edit any field</p>
+        <div className="min-w-0 flex-1">
+          <button type="button" onClick={editing ? onCloseEdit : onEdit} className="w-full text-left">
+            <p className="text-sm font-bold" style={{ color: pending ? "#be123c" : "#0f172a" }}>
+              {row.school_name}
+            </p>
+            <p className="mt-0.5 text-xs font-semibold" style={{ color: pending ? "#e11d48" : BRAND }}>
+              {REMINDER_KIND_LABELS[row.kind]}
+              {overdue ? " · Overdue" : pending ? " · Open" : " · Done"}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: pending ? "#be123c" : "#64748b" }}>
+              {formatReminderWhen(row.due_at)}
+            </p>
+            {!editing && row.note ? <p className="mt-1 text-sm text-slate-700">{row.note}</p> : null}
+            <p className="mt-1 text-[11px] text-slate-400">Set by {row.created_by}</p>
+          </button>
+          {!editing && row.phone ? (
+            <a
+              href={`tel:${row.phone}`}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold"
+              style={{ color: pending ? "#be123c" : BRAND }}
+            >
+              <Phone className="h-3 w-3" />
+              {row.phone}
+            </a>
+          ) : null}
         </div>
         <div className="flex shrink-0 gap-1">
+          {!editing ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+              aria-label="Edit reminder"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCloseEdit}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600"
+              aria-label="Close reminder editor"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void onPatch({ done: !row.done })}
@@ -504,6 +554,7 @@ function ReminderCard({
         </div>
       </div>
 
+      {editing ? (
       <div className="mt-3 space-y-2">
         <label className="block">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">School</span>
@@ -610,6 +661,7 @@ function ReminderCard({
           </a>
         ) : null}
       </div>
+      ) : null}
     </div>
   );
 }
