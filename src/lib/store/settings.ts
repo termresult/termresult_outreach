@@ -1,7 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { adminDb } from "@/lib/firebase/admin";
+import { memoryStore, useMemoryStore } from "@/lib/store/memory";
 
-const DATA_PATH = resolve(process.cwd(), ".data/settings.json");
+const SETTINGS_ID = "app";
 
 export type OutreachSettings = {
   test_phone: string;
@@ -15,17 +15,20 @@ function emptySettings(): OutreachSettings {
   };
 }
 
-export function getSettings(): OutreachSettings {
-  try {
-    return { ...emptySettings(), ...(JSON.parse(readFileSync(DATA_PATH, "utf8")) as OutreachSettings) };
-  } catch {
-    return emptySettings();
+export async function getSettings(): Promise<OutreachSettings> {
+  if (useMemoryStore()) {
+    return { ...emptySettings(), ...(memoryStore().settings ?? {}) };
   }
+  const snap = await adminDb().collection("settings").doc(SETTINGS_ID).get();
+  return { ...emptySettings(), ...((snap.data() as Partial<OutreachSettings> | undefined) ?? {}) };
 }
 
-export function saveSettings(next: Partial<OutreachSettings>): OutreachSettings {
-  const merged = { ...getSettings(), ...next };
-  mkdirSync(dirname(DATA_PATH), { recursive: true });
-  writeFileSync(DATA_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+export async function saveSettings(next: Partial<OutreachSettings>): Promise<OutreachSettings> {
+  const merged = { ...(await getSettings()), ...next };
+  if (useMemoryStore()) {
+    memoryStore().settings = merged;
+    return merged;
+  }
+  await adminDb().collection("settings").doc(SETTINGS_ID).set(merged);
   return merged;
 }

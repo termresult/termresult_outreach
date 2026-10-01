@@ -24,11 +24,16 @@ export default async function LogsPage({
   const campaignId = typeof raw.campaign === "string" ? raw.campaign : "";
   const page = Math.max(1, Number(typeof raw.page === "string" ? raw.page : "1") || 1);
 
-  const campaigns = listCampaigns();
-  let rows = listMessages(campaignId || undefined);
+  const campaigns = await listCampaigns();
+  let rows = await listMessages(campaignId || undefined);
   if (status) rows = rows.filter((row) => row.status === status);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const slice = rows.slice((page - 1) * PAGE, page * PAGE);
+  const names = Object.fromEntries(
+    (await Promise.all(slice.map(async (row) => [row.contact_id, (await getContact(row.contact_id))?.name ?? null] as const))).map(
+      ([id, name]) => [id, name],
+    ),
+  );
 
   return (
     <AppShell email={user.email}>
@@ -76,7 +81,7 @@ export default async function LogsPage({
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
             {slice.map((row) => (
-              <LogCard key={row.id} row={row} />
+              <LogCard key={row.id} row={row} schoolName={names[row.contact_id]} />
             ))}
           </div>
           <div className="mt-4 hidden overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm md:block">
@@ -99,10 +104,9 @@ export default async function LogsPage({
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {slice.map((row) => {
-                  const contact = getContact(row.contact_id);
                   return (
                     <tr key={row.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{contact?.name ?? row.contact_id}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{names[row.contact_id] ?? row.contact_id}</td>
                       <td className="px-4 py-3 capitalize text-slate-600">{row.channel}</td>
                       <td className="px-4 py-3 text-slate-600">{row.to ?? "—"}</td>
                       <td className="px-4 py-3">
@@ -147,13 +151,14 @@ export default async function LogsPage({
 
 function LogCard({
   row,
+  schoolName,
 }: {
   row: { id: string; contact_id: string; channel: string; to: string | null; status: MessageStatus };
+  schoolName: string | null;
 }) {
-  const contact = getContact(row.contact_id);
   return (
     <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-sm font-bold text-slate-900">{contact?.name ?? row.contact_id}</p>
+      <p className="text-sm font-bold text-slate-900">{schoolName ?? row.contact_id}</p>
       <p className="mt-1 text-xs text-slate-500">
         {row.channel} · {row.to ?? "—"}
       </p>

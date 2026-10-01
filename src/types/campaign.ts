@@ -14,6 +14,8 @@ export type CampaignAudience = {
     has_phone?: boolean;
     has_email?: boolean;
     areas?: string[];
+    exclude_areas?: string[];
+    exclude_emails?: string[];
     source?: "maps" | "directory";
   };
 };
@@ -29,6 +31,22 @@ export type CampaignThrottle = {
   daily_cap: number;
 };
 
+export type CampaignSendCursor = {
+  last_email_at: string | null;
+  send_day: string | null;
+  sent_today: number;
+  queued_left: number;
+};
+
+export function emptySendCursor(queuedLeft = 0): CampaignSendCursor {
+  return {
+    last_email_at: null,
+    send_day: null,
+    sent_today: 0,
+    queued_left: queuedLeft,
+  };
+}
+
 export type Campaign = {
   schema_version: "1.0.0";
   id: string;
@@ -40,6 +58,7 @@ export type Campaign = {
   template: CampaignTemplate;
   email_subject: string | null;
   throttle: CampaignThrottle;
+  send_cursor: CampaignSendCursor;
   created_by: string;
   created_at: string;
 };
@@ -55,7 +74,8 @@ export function emptyCampaign(id: string, createdBy: string): Campaign {
     audience_count: 0,
     template: { variables: ["school_name"] },
     email_subject: null,
-    throttle: { gap_seconds: 180, daily_cap: 400 },
+    throttle: { gap_seconds: 60, daily_cap: 400 },
+    send_cursor: emptySendCursor(),
     created_by: createdBy,
     created_at: new Date().toISOString(),
   };

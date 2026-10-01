@@ -10,7 +10,7 @@ export default async function NewCampaignPage() {
   if (!user) redirect("/login");
 
   const areas = [
-    ...new Set(listContacts().map((c) => c.area).filter((area): area is string => Boolean(area))),
+    ...new Set((await listContacts()).map((c) => c.area).filter((area): area is string => Boolean(area))),
   ].sort();
 
   return (

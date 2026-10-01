@@ -11,10 +11,16 @@
     "seed": "tsx src/scripts/seed-dummy.ts",
     "seed:attendees": "tsx src/scripts/seed-attendees.ts",
     "seed:proprietors": "tsx src/scripts/seed-proprietors.ts",
-    "import:fct": "tsx src/scripts/import-fct.ts"
+    "import:fct": "tsx src/scripts/import-fct.ts",
+    "gmail:oauth": "tsx src/scripts/gmail-oauth.ts",
+    "migrate:firestore": "tsx src/scripts/migrate-firestore.ts",
+    "tick:http": "tsx src/scripts/email-tick-http.ts",
+    "outreach:prona": "tsx src/scripts/start-prona-outreach.ts",
+    "deploy:run": "tsx src/scripts/deploy-cloud-run.ts"
   },
   "dependencies": {
     "firebase-admin": "^14.3.0",
+    "google-auth-library": "^11.0.2",
     "lucide-react": "^0.562.0",
     "next": "16.3.1",
     "react": "19.2.8",

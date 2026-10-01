@@ -14,10 +14,10 @@ export async function POST(request: Request) {
   const from = e164FromWhatsApp(String(form.get("From") ?? ""));
 
   if (sid && status) {
-    const row = findMessageByProviderId(sid);
+    const row = await findMessageByProviderId(sid);
     if (row) {
       const mapped = mapTwilioStatus(status);
-      patchMessage(row.idempotency_key, {
+      await patchMessage(row.idempotency_key, {
         status: mapped === "queued" ? row.status : mapped,
         error: mapped === "failed" ? `Twilio: ${status}` : row.error,
         completed_at: mapped === "sent" || mapped === "failed" ? new Date().toISOString() : row.completed_at,
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (from) applyInboundStop(from, body);
+  if (from) await applyInboundStop(from, body);
 
   return new NextResponse("<Response></Response>", {
     status: 200,

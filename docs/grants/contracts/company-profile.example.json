@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "id": "termresult",
+  "legal_name": "TermResult Limited",
+  "trading_name": "TermResult",
+  "country": "NG",
+  "city": "Abuja",
+  "entity_type": "private_limited",
+  "cac_rc": null,
+  "tax_id": null,
+  "founded_year": 2024,
+  "website": "https://termresult.com",
+  "email": "admin@termresult.com",
+  "phone": null,
+  "one_liner": "School operating system for Nigerian schools — results, fees, and parent access.",
+  "problem": "Many private schools still run results and fees on paper or scattered spreadsheets.",
+  "solution": "A tenant portal per school for results, promotions, fees, and parent communication.",
+  "traction": {
+    "schools": null,
+    "students": null,
+    "states": ["FCT"],
+    "notes": "Active outreach to FCT schools; live school portals on termresult.com"
+  },
+  "stage": "pre_seed",
+  "sector_tags": ["edtech", "school_os", "results"],
+  "team": [],
+  "documents": [],
+  "updated_at": "2026-09-05T10:00:00.000Z",
+  "updated_by": "admin@termresult.com"
+}

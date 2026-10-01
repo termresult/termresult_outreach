@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "id": "example-africa-edtech-2026",
+  "grant_id": "example-africa-edtech-2026",
+  "status": "ready_for_review",
+  "fit_score": 82,
+  "fit_reasons": [
+    "Nigerian edtech, for-profit allowed",
+    "Africa region bucket ranks above global",
+    "Deadline is in the future"
+  ],
+  "disqualifiers": [],
+  "override_eligible": false,
+  "pack": {
+    "subject": "TermResult — Example Africa EdTech Grant 2026",
+    "cover_email": "We are applying as TermResult, a school operating system used by Nigerian schools.",
+    "answers": {
+      "summary": {
+        "text": "TermResult is a school operating system for results, fees, and parent access.",
+        "needs_operator": false
+      },
+      "use_of_funds": {
+        "text": "",
+        "needs_operator": true
+      }
+    },
+    "attachment_kinds": ["deck"],
+    "needs_operator": true
+  },
+  "apply_choice": "email",
+  "to_email": "grants@example.org",
+  "message_id": null,
+  "confirmation_url": null,
+  "submitted_at": null,
+  "created_by": "admin@termresult.com",
+  "updated_at": "2026-09-05T10:00:00.000Z"
+}

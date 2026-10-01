@@ -31,18 +31,18 @@ export function contactsFromRecordsJson(text: string): OutreachContact[] {
   return rows.map(mapDiscoveryRecord).filter((row): row is OutreachContact => row !== null);
 }
 
-export function importText(filename: string, text: string): ImportSummary {
+export async function importText(filename: string, text: string): Promise<ImportSummary> {
   const lower = filename.toLowerCase();
   const contacts = lower.endsWith(".json") ? contactsFromRecordsJson(text) : contactsFromCsv(text);
   return upsertContacts(contacts);
 }
 
-export function importFctFromDisk(): ImportSummary {
+export async function importFctFromDisk(): Promise<ImportSummary> {
   try {
     const text = readFileSync(FCT_RECORDS_PATH, "utf8");
-    return importText("records.json", text);
+    return await importText("records.json", text);
   } catch {
     const text = readFileSync(FCT_CSV_PATH, "utf8");
-    return importText("contacts-live.csv", text);
+    return await importText("contacts-live.csv", text);
   }
 }

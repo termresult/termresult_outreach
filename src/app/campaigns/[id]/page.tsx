@@ -6,7 +6,9 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getContact } from "@/lib/store/contacts";
 import { getCampaign, listMessages } from "@/lib/store/outreach";
 import { getSettings } from "@/lib/store/settings";
+import { isGmailConfigured } from "@/lib/send/email-gmail";
 import { isWhatsAppConfigured } from "@/lib/send/whatsapp-twilio";
+import { EmailActions } from "./email-actions";
 import { RunActions } from "./run-actions";
 
 export default async function CampaignDetailPage({
@@ -17,12 +19,14 @@ export default async function CampaignDetailPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const { id } = await params;
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign) notFound();
 
-  const messages = listMessages(campaign.id);
+  const messages = await listMessages(campaign.id);
   const queued = messages.filter((row) => row.status === "queued").length;
   const sample = messages.slice(0, 5);
+  const settings = await getSettings();
+  const sampleContacts = await Promise.all(sample.map((row) => getContact(row.contact_id)));
 
   return (
     <AppShell email={user.email}>
@@ -62,11 +66,19 @@ export default async function CampaignDetailPage({
           campaignId={campaign.id}
           queued={queued}
           whatsappReady={isWhatsAppConfigured()}
-          testPhone={getSettings().test_phone}
+          testPhone={settings.test_phone}
+        />
+      ) : campaign.channel === "email" ? (
+        <EmailActions
+          campaignId={campaign.id}
+          queued={queued}
+          status={campaign.status}
+          gmailReady={isGmailConfigured()}
+          testEmail={settings.test_email}
         />
       ) : (
         <p className="mt-6 text-sm text-slate-500">
-          SMS and email stay off until later phases. This campaign is queued only.
+          SMS stays off until the Termii phase. This campaign is queued only.
         </p>
       )}
       <Link href={`/logs?campaign=${campaign.id}`} className="mt-4 inline-block text-sm font-semibold hover:underline" style={{ color: "#2563EB" }}>
@@ -74,8 +86,8 @@ export default async function CampaignDetailPage({
       </Link>
 
       <div className="mt-6 space-y-3">
-        {sample.map((row) => {
-          const contact = getContact(row.contact_id);
+        {sample.map((row, index) => {
+          const contact = sampleContacts[index];
           return (
             <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
               <p className="text-sm font-bold text-slate-900">{contact?.name ?? row.contact_id}</p>

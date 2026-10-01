@@ -7,10 +7,12 @@ export function SettingsForm({
   testPhone,
   testEmail,
   whatsappReady,
+  gmailReady,
 }: {
   testPhone: string;
   testEmail: string;
   whatsappReady: boolean;
+  gmailReady: boolean;
 }) {
   const [phone, setPhone] = useState(testPhone);
   const [email, setEmail] = useState(testEmail);
@@ -45,6 +47,11 @@ export function SettingsForm({
         className={`text-[11px] font-semibold uppercase tracking-wide ${whatsappReady ? "text-emerald-700" : "text-amber-700"}`}
       >
         {whatsappReady ? "WhatsApp / Twilio is configured" : "WhatsApp / Twilio is not configured"}
+      </p>
+      <p
+        className={`text-[11px] font-semibold uppercase tracking-wide ${gmailReady ? "text-emerald-700" : "text-amber-700"}`}
+      >
+        {gmailReady ? "Gmail API is configured" : "Gmail API is not configured"}
       </p>
       <label className="block">
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Test phone</span>

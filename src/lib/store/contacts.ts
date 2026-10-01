@@ -1,9 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import type { OutreachContact } from "@/types/contact";
+import type { DocumentData } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebase/admin";
 import { mergeContact } from "@/lib/import/map-contact";
-
-const DATA_PATH = resolve(process.cwd(), ".data/contacts.json");
+import { memoryStore, useMemoryStore } from "@/lib/store/memory";
+import type { OutreachContact } from "@/types/contact";
 
 export type ImportSummary = {
   created: number;
@@ -15,33 +14,25 @@ export type ImportSummary = {
   total: number;
 };
 
-type StoreFile = {
-  contacts: Record<string, OutreachContact>;
-};
-
-function readStore(): StoreFile {
-  try {
-    return JSON.parse(readFileSync(DATA_PATH, "utf8")) as StoreFile;
-  } catch {
-    return { contacts: {} };
-  }
+function asContact(id: string, data: DocumentData | undefined): OutreachContact | null {
+  if (!data) return null;
+  return { ...(data as OutreachContact), id: (data.id as string) || id };
 }
 
-function writeStore(store: StoreFile) {
-  mkdirSync(dirname(DATA_PATH), { recursive: true });
-  writeFileSync(DATA_PATH, `${JSON.stringify(store)}\n`, "utf8");
+export async function listContacts(): Promise<OutreachContact[]> {
+  if (useMemoryStore()) return Object.values(memoryStore().contacts);
+  const snap = await adminDb().collection("contacts").get();
+  return snap.docs.map((doc) => asContact(doc.id, doc.data())!).filter(Boolean);
 }
 
-export function listContacts(): OutreachContact[] {
-  return Object.values(readStore().contacts);
+export async function getContact(id: string): Promise<OutreachContact | null> {
+  if (useMemoryStore()) return memoryStore().contacts[id] ?? null;
+  const snap = await adminDb().collection("contacts").doc(id).get();
+  return asContact(id, snap.data());
 }
 
-export function getContact(id: string): OutreachContact | null {
-  return readStore().contacts[id] ?? null;
-}
-
-export function contactStats() {
-  const contacts = listContacts();
+export async function contactStats() {
+  const contacts = await listContacts();
   return {
     schools: contacts.length,
     with_phone: contacts.filter((c) => c.phone_e164).length,
@@ -49,31 +40,41 @@ export function contactStats() {
   };
 }
 
-export function upsertContacts(incoming: OutreachContact[]): ImportSummary {
-  const store = readStore();
+export async function upsertContacts(incoming: OutreachContact[]): Promise<ImportSummary> {
   const now = new Date().toISOString();
   let created = 0;
   let updated = 0;
   let skipped = 0;
   let invalid = 0;
+  const written: OutreachContact[] = [];
 
   for (const row of incoming) {
     if (!row.source_place_id || !row.name) {
       invalid += 1;
       continue;
     }
-    const existing = store.contacts[row.id];
-    if (existing) {
-      store.contacts[row.id] = mergeContact(existing, row, now);
-      updated += 1;
-    } else {
-      store.contacts[row.id] = mergeContact(undefined, row, now);
-      created += 1;
+    const existing = await getContact(row.id);
+    const next = mergeContact(existing ?? undefined, row, now);
+    written.push(next);
+    if (existing) updated += 1;
+    else created += 1;
+  }
+
+  if (useMemoryStore()) {
+    const store = memoryStore();
+    for (const row of written) store.contacts[row.id] = row;
+  } else if (written.length) {
+    const db = adminDb();
+    for (let i = 0; i < written.length; i += 400) {
+      const batch = db.batch();
+      for (const row of written.slice(i, i + 400)) {
+        batch.set(db.collection("contacts").doc(row.id), row);
+      }
+      await batch.commit();
     }
   }
 
-  writeStore(store);
-  const contacts = Object.values(store.contacts);
+  const contacts = await listContacts();
   return {
     created,
     updated,

@@ -15,7 +15,7 @@ export default async function ContactDetailPage({
   if (!user) redirect("/login");
 
   const { id } = await params;
-  const contact = getContact(decodeURIComponent(id));
+  const contact = await getContact(decodeURIComponent(id));
   if (!contact) notFound();
 
   const rows = [

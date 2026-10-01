@@ -31,10 +31,10 @@ describe("WhatsApp adapter", () => {
     expect(result.provider_id).toBe("SM_ALREADY");
   });
 
-  it("creates a suppression from a STOP inbound", () => {
+  it("creates a suppression from a STOP inbound", async () => {
     expect(isStopText("STOP")).toBe(true);
-    applyInboundStop("whatsapp:+2348099988877", "stop please");
-    const found = listSuppressions().find((row) => row.address === "+2348099988877");
+    await applyInboundStop("whatsapp:+2348099988877", "stop please");
+    const found = (await listSuppressions()).find((row) => row.address === "+2348099988877");
     expect(found?.channel).toBe("whatsapp");
     expect(found?.reason).toBe("stop");
   });

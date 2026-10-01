@@ -153,3 +153,4 @@ A signed-in teammate can import the FCT list, build an audience, send a WhatsApp
 - Voice / USSD
 - Buying a new dedicated SMS short code (sender ID registration is enough)
 - Auto-generating email copy with an LLM (nice later; Phase 06 can leave a “body” field the operator pastes or we merge)
+- TermResult company grants (separate plan: [grants/00_OVERVIEW.md](./grants/00_OVERVIEW.md))

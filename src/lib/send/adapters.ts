@@ -1,5 +1,6 @@
 import type { CampaignChannel } from "@/types/campaign";
 import type { Message } from "@/types/message";
+import { isGmailConfigured, sendEmail } from "@/lib/send/email-gmail";
 import { isWhatsAppConfigured, sendWhatsApp } from "@/lib/send/whatsapp-twilio";
 
 export type AdapterResult = {
@@ -31,6 +32,13 @@ export function getAdapter(channel: CampaignChannel): ChannelAdapter {
       channel,
       configured: isWhatsAppConfigured(),
       send: (message) => sendWhatsApp(message),
+    };
+  }
+  if (channel === "email") {
+    return {
+      channel,
+      configured: isGmailConfigured(),
+      send: (message) => sendEmail(message),
     };
   }
   return stub(channel);

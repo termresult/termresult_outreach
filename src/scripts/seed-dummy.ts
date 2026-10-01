@@ -26,5 +26,5 @@ contact.area = "Maitama";
 contact.imported_at = new Date().toISOString();
 contact.updated_at = contact.imported_at;
 
-upsertContacts([contact]);
+await upsertContacts([contact]);
 console.log(`wrote contacts/${id}`);

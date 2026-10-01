@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Name, channel, and message are required." }, { status: 400 });
   }
 
-  const campaign = createCampaign({
+  const campaign = await createCampaign({
     name: body.name,
     channel: body.channel,
     audience: body.audience ?? { filter: {} },
@@ -34,6 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ campaign, queued: 0 });
   }
 
-  const confirmed = confirmCampaign(campaign.id);
+  const confirmed = await confirmCampaign(campaign.id);
   return NextResponse.json(confirmed);
 }

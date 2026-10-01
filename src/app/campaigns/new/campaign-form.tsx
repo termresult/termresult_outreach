@@ -172,7 +172,7 @@ export function CampaignForm({ areas }: { areas: string[] }) {
 
         {channel === "email" ? (
           <p className="text-xs leading-relaxed text-slate-500">
-            Email will later send one letter every 3 minutes, 400 a day. Nothing sends in this phase.
+            Email sends one letter every 3 minutes, 400 a day, as admin@termresult.com. Test first.
           </p>
         ) : null}
 

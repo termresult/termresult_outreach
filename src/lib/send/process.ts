@@ -8,12 +8,12 @@ export async function processQueue(
   campaignId?: string,
   limit = SEND_BATCH,
 ): Promise<{ sent: number; failed: number; skipped: number; left_queued: number }> {
-  const rows = listMessages(campaignId).filter((row) => row.status === "queued").slice(0, limit);
+  const rows = (await listMessages(campaignId)).filter((row) => row.status === "queued").slice(0, limit);
   if (campaignId) {
-    const campaign = getCampaign(campaignId);
+    const campaign = await getCampaign(campaignId);
     if (campaign && campaign.status !== "done") {
       campaign.status = "running";
-      saveCampaign(campaign);
+      await saveCampaign(campaign);
     }
   }
 
@@ -49,18 +49,18 @@ export async function processQueue(
     next.push(updated);
   }
 
-  replaceMessages(next);
+  await replaceMessages(next);
 
   let leftQueued = 0;
   if (campaignId) {
-    leftQueued = listMessages(campaignId).filter((row) => row.status === "queued").length;
-    const campaign = getCampaign(campaignId);
+    leftQueued = (await listMessages(campaignId)).filter((row) => row.status === "queued").length;
+    const campaign = await getCampaign(campaignId);
     if (campaign && leftQueued === 0) {
       campaign.status = "done";
-      saveCampaign(campaign);
+      await saveCampaign(campaign);
     }
   } else {
-    leftQueued = listMessages().filter((row) => row.status === "queued").length;
+    leftQueued = (await listMessages()).filter((row) => row.status === "queued").length;
   }
 
   return { sent, failed, skipped, left_queued: leftQueued };

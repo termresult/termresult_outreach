@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       if (!body.fromDisk) {
         return NextResponse.json({ error: "Nothing to import." }, { status: 400 });
       }
-      return NextResponse.json(importFctFromDisk());
+      return NextResponse.json(await importFctFromDisk());
     }
 
     const form = await request.formData();
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Choose a CSV or JSON file." }, { status: 400 });
     }
     const text = await file.text();
-    return NextResponse.json(importText(file.name, text));
+    return NextResponse.json(await importText(file.name, text));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Import failed.";
     return NextResponse.json({ error: message }, { status: 500 });

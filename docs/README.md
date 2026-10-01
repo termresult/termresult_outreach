@@ -6,6 +6,8 @@
 
 **What this is:** a **simple Next.js app** (Vercel) so a non-technical teammate can message FCT schools we already scraped — WhatsApp first, then bulk SMS, then personalised Gmail. Contacts live in a **new Firebase project** under the TermResult Google account.
 
+**Related initiative:** [grants/](./grants/README.md) — TermResult-only grant desk (find, draft, email-apply). Separate phase index; do not mix with school campaigns.
+
 **Where this lives:** `termresult_outreach/` is its own app beside `termresult_school_discovery`, `termresults_schools`, `termresultwebsite`, and `termresultbackend`.
 
 **Scraping is done.** Do not re-run Maps discovery from this app. Import the existing run (`contacts-live.csv` / `records.json`).
@@ -55,3 +57,4 @@ v1 does **not** publish outreach lists to School Finder. It does **not** scrape 
 | [05_BULK_SMS.md](./05_BULK_SMS.md) | Cheap Nigeria SMS provider (not Twilio SMS). |
 | [06_EMAIL.md](./06_EMAIL.md) | Gmail API, throttled, one custom message per school. |
 | [07_OPERATOR_POLISH.md](./07_OPERATOR_POLISH.md) | Non-technical UX, reports, safety. |
+| [grants/](./grants/README.md) | TermResult company grant desk (own phase index). |

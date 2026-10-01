@@ -81,7 +81,7 @@ export async function sendWhatsApp(
     return { status: "sent", provider_id: message.provider_id ?? undefined };
   }
 
-  const contact = options.contact ?? getContact(message.contact_id);
+  const contact = options.contact ?? (await getContact(message.contact_id));
   if (!message.to && !contact?.phone_e164) {
     return { status: "skipped", skip_reason: "no_phone" };
   }
@@ -135,9 +135,9 @@ export async function sendWhatsApp(
   return { status: "sent", provider_id: payload.sid };
 }
 
-export function applyInboundStop(from: string, body: string): boolean {
+export async function applyInboundStop(from: string, body: string): Promise<boolean> {
   if (!from || !isStopText(body)) return false;
-  addSuppression({
+  await addSuppression({
     address: e164FromWhatsApp(from),
     channel: "whatsapp",
     reason: "stop",

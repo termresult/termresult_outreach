@@ -33,6 +33,11 @@ export function matchAudience(
     if (filter.has_email && !contact.email) return false;
     if (filter.source && contact.source !== filter.source) return false;
     if (filter.areas?.length && !filter.areas.includes(contact.area ?? "")) return false;
+    if (filter.exclude_areas?.length && filter.exclude_areas.includes(contact.area ?? "")) return false;
+    if (filter.exclude_emails?.length) {
+      const email = contact.email?.trim().toLowerCase() ?? "";
+      if (email && filter.exclude_emails.some((row) => row.trim().toLowerCase() === email)) return false;
+    }
     return true;
   });
 }

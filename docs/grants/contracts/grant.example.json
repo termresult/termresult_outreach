@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "id": "example-africa-edtech-2026",
+  "source_id": "manual",
+  "title": "Example Africa EdTech Grant 2026",
+  "funder": "Example Foundation",
+  "url": "https://example.org/grants/africa-edtech-2026",
+  "canonical_url": "https://example.org/grants/africa-edtech-2026",
+  "region": "africa",
+  "countries_eligible": ["NG", "KE", "GH", "ZA"],
+  "apply_via": "email",
+  "apply_email": "grants@example.org",
+  "deadline_at": "2026-11-30T23:59:59.000Z",
+  "amount_min": 10000,
+  "amount_max": 50000,
+  "currency": "USD",
+  "eligibility_notes": "Registered African startups in education technology. For-profit allowed.",
+  "required_fields": [
+    { "key": "summary", "prompt": "Describe the product in one page.", "kind": "long" },
+    { "key": "use_of_funds", "prompt": "How will you use the grant?", "kind": "long" },
+    { "key": "deck", "prompt": "Upload a pitch deck.", "kind": "file" }
+  ],
+  "listing_status": "open",
+  "raw_excerpt": "Applications close 30 November 2026. Email grants@example.org.",
+  "discovered_at": "2026-09-05T10:00:00.000Z",
+  "updated_at": "2026-09-05T10:00:00.000Z"
+}

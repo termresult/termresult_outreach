@@ -10,7 +10,7 @@ import { BRAND } from "@/lib/color";
 export default async function CampaignsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  const campaigns = listCampaigns();
+  const campaigns = await listCampaigns();
 
   return (
     <AppShell email={user.email}>

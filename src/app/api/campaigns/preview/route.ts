@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pick a channel." }, { status: 400 });
   }
   return NextResponse.json(
-    previewCampaign({
+    await previewCampaign({
       channel: body.channel,
       audience: body.audience ?? { filter: {} },
       body: body.body ?? "",

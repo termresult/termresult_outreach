@@ -1,0 +1,13 @@
+.git
+.vercel
+.next
+.data
+node_modules
+docs
+test
+*.md
+.env
+.env.local
+.env*.local
+cloud-run
+.secrets

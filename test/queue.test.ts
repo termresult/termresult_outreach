@@ -29,6 +29,31 @@ describe("buildQueue", () => {
     expect(rows.every((row) => row.status === "queued")).toBe(true);
   });
 
+  it("excludes staff and test inboxes from an email audience", () => {
+    const campaign = emptyCampaign("camp_prona", "officialtermresult@gmail.com");
+    campaign.channel = "email";
+    campaign.email_subject = "Training";
+    campaign.template.body = "Good day, {{school_name}}.";
+    campaign.audience = {
+      filter: {
+        has_email: true,
+        exclude_areas: ["Pipeline Test", "TermResult Staff"],
+        exclude_emails: ["iyanuoluwadada15@gmail.com"],
+      },
+    };
+    const staff = school("ceo", null, "iyanuoluwadada15@gmail.com");
+    staff.area = "TermResult Staff";
+    staff.name = "Iyanu";
+    const test = school("test:one", null, "rightpossible1@gmail.com");
+    test.area = "Pipeline Test";
+    const real = school("school:1", null, "school@example.ng");
+    real.area = "Gwarinpa";
+    real.name = "Hope Academy";
+    const rows = buildQueue({ campaign, contacts: [staff, test, real] });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.to).toBe("school@example.ng");
+  });
+
   it("does not double-queue on a second confirm", () => {
     const campaign = emptyCampaign("camp_1", "officialtermresult@gmail.com");
     campaign.channel = "whatsapp";

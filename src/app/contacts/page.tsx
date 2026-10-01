@@ -25,7 +25,7 @@ export default async function ContactsPage({
     }),
   ));
 
-  const all = listContacts().sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+  const all = (await listContacts()).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
   const areas = [...new Set(all.map((c) => c.area).filter((area): area is string => Boolean(area)))].sort();
   const filtered = filterContacts(all, query);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
