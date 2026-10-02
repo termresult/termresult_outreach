@@ -12,6 +12,10 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
 function isAttendee(value: unknown): value is Attendee {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -30,6 +34,8 @@ function isAttendee(value: unknown): value is Attendee {
     isNullableString(attendee.transcription_notes) &&
     (attendee.contacted === undefined || typeof attendee.contacted === "boolean") &&
     (attendee.priority === undefined || typeof attendee.priority === "boolean") &&
+    (attendee.student_count === undefined || isNullableNumber(attendee.student_count)) &&
+    (attendee.average_fees === undefined || isNullableNumber(attendee.average_fees)) &&
     (attendee.install_date === undefined || isNullableString(attendee.install_date)) &&
     (attendee.install_booked_by === undefined || isNullableString(attendee.install_booked_by)) &&
     typeof attendee.created_at === "string" &&

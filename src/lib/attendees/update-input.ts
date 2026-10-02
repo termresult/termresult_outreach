@@ -75,5 +75,22 @@ export function parseAttendeeUpdateBody(value: unknown): ParsedAttendeeUpdate {
     input.install_date = body.install_date;
   }
 
+  for (const [field, label] of [
+    ["student_count", "Student count"],
+    ["average_fees", "Average school fees"],
+  ] as const) {
+    if (body[field] === undefined) continue;
+    input[field] = parseCount(body[field], label);
+  }
+
   return { input, actor: body.operator_name };
+}
+
+function parseCount(value: unknown, label: string): number | null {
+  if (value === null || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new AttendeeError(`${label} must be a number.`, 400);
+  }
+  return Math.round(n);
 }

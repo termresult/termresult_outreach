@@ -36,6 +36,8 @@ function asAttendee(id: string, data: DocumentData | undefined): Attendee | null
     id: (data.id as string) || id,
     contacted: Boolean(row.contacted),
     priority: Boolean(row.priority),
+    student_count: asCount(row.student_count),
+    average_fees: asCount(row.average_fees),
     install_date: row.install_date ?? null,
     install_booked_by: row.install_booked_by ?? null,
   };
@@ -70,6 +72,13 @@ function rememberSlot(slot: InstallSlot | null, previousDate: string | null, nex
 function blank(value: string | null | undefined): string | null {
   const normalized = value?.trim() ?? "";
   return normalized || null;
+}
+
+function asCount(value: number | null | undefined): number | null {
+  if (value == null || value === ("" as never)) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
 }
 
 function isAttendanceStatus(value: unknown): value is AttendanceStatus {
@@ -165,6 +174,10 @@ export async function updateAttendee(
         : existing.transcription_notes,
     contacted: input.contacted ?? existing.contacted,
     priority: input.priority ?? existing.priority,
+    student_count:
+      input.student_count !== undefined ? asCount(input.student_count) : existing.student_count,
+    average_fees:
+      input.average_fees !== undefined ? asCount(input.average_fees) : existing.average_fees,
     install_date:
       input.install_date !== undefined ? parseInstallDate(input.install_date) : existing.install_date,
     updated_at: now,
@@ -284,6 +297,8 @@ function attendeeFromSeed(row: SeedAttendee): Attendee {
     transcription_notes: blank(row.transcription_notes),
     contacted: false,
     priority: false,
+    student_count: null,
+    average_fees: null,
     install_date: null,
     install_booked_by: null,
     created_at: now,

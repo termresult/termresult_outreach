@@ -32,6 +32,8 @@ function sample(over: Partial<Attendee> = {}): Attendee {
     transcription_notes: null,
     contacted: false,
     priority: false,
+    student_count: null,
+    average_fees: null,
     install_date: null,
     install_booked_by: null,
     created_at: "2026-09-11T00:00:00.000Z",
@@ -339,6 +341,18 @@ describe("attendee store", () => {
     expect(updated.transcription_notes).toBeNull();
   });
 
+  it("saves confirmed student count and fees", async () => {
+    const { attendee } = await upsertSeedAttendee(seed());
+    const updated = await updateAttendee(
+      attendee.id,
+      { student_count: 140, average_fees: 75000 },
+      "Iyanu",
+    );
+
+    expect(updated.student_count).toBe(140);
+    expect(updated.average_fees).toBe(75000);
+  });
+
   it("returns a status-bearing error for an unknown attendee", async () => {
     await expect(updateAttendee("missing", { school_name: "School" }, "Iyanu")).rejects.toMatchObject({
       message: "Attendee not found.",
@@ -523,6 +537,8 @@ describe("attendee store", () => {
     expect(attendee).toMatchObject({
       contacted: false,
       priority: false,
+      student_count: null,
+      average_fees: null,
       install_date: null,
       install_booked_by: null,
     });

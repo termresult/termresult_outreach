@@ -10,7 +10,7 @@ export type AttendeeQuery = {
   flag?: FlagFilter;
 };
 
-export function filterAttendees(rows: Attendee[], query: AttendeeQuery): Attendee[] {
+export function filterAttendees<T extends Attendee>(rows: T[], query: AttendeeQuery): T[] {
   const needle = query.q?.trim().toLowerCase() ?? "";
   return rows.filter((row) => {
     if (

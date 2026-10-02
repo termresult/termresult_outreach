@@ -14,6 +14,15 @@ import type { Attendee } from "@/types/attendee";
 import { FormSelect } from "@/components/ui/form-select";
 import { BRAND, hexToRgba } from "@/lib/color";
 import { formatInstallDay } from "@/lib/proprietors/install-date";
+import {
+  SIZE_FEE_LABELS,
+  formatFeeRange,
+  formatNaira,
+  formatStudentRange,
+  rankSchools,
+  sortRanked,
+  type SizeSort,
+} from "@/lib/schools/size-fees";
 import { InstallDateField } from "./install-date-field";
 import {
   FOLLOW_UP_LABELS,
@@ -117,8 +126,7 @@ function statusTone(status: FollowUpStatus): { bg: string; text: string } {
 }
 
 function naira(value: number | null): string {
-  if (value == null) return "—";
-  return `₦${value.toLocaleString("en-NG")}`;
+  return formatNaira(value);
 }
 
 function softwareLine(row: Proprietor): string {
@@ -147,6 +155,7 @@ export function ProprietorsBoard({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [firstTalker, setFirstTalker] = useState<FirstTalker>("all");
+  const [sort, setSort] = useState<SizeSort>("rank");
   const openedRow = openId ? initial.find((item) => item.id === openId) ?? null : null;
   const [open, setOpen] = useState(Boolean(openedRow));
   const [editing, setEditing] = useState<Proprietor | null>(openedRow);
@@ -215,7 +224,8 @@ export function ProprietorsBoard({
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((row) => {
+    const ranked = rankSchools(rows);
+    const filtered = ranked.filter((row) => {
       if (filter === "not_yet" && row.status !== "not_yet_contacted") return false;
       if (filter === "talked" && !alreadyTalked(row.status)) return false;
       if (filter === "talking" && !isLockActive(row)) return false;
@@ -226,7 +236,8 @@ export function ProprietorsBoard({
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
-  }, [rows, query, filter, firstTalker]);
+    return sortRanked(filtered, sort);
+  }, [rows, query, filter, firstTalker, sort]);
 
   function needName(): boolean {
     if (operator) return false;
@@ -274,9 +285,7 @@ export function ProprietorsBoard({
           return;
         }
         setRows((current) =>
-          current
-            .map((item) => (item.id === data.proprietor!.id ? data.proprietor! : item))
-            .sort((a, b) => a.school_name.localeCompare(b.school_name)),
+          current.map((item) => (item.id === data.proprietor!.id ? data.proprietor! : item)),
         );
         setOpen(false);
         return;
@@ -302,13 +311,11 @@ export function ProprietorsBoard({
         setForm(fromRow(data.proprietor));
         setRows((current) => {
           if (current.some((item) => item.id === data.proprietor!.id)) return current;
-          return [...current, data.proprietor!].sort((a, b) => a.school_name.localeCompare(b.school_name));
+          return [...current, data.proprietor!];
         });
         return;
       }
-      setRows((current) =>
-        [...current, data.proprietor!].sort((a, b) => a.school_name.localeCompare(b.school_name)),
-      );
+      setRows((current) => [...current, data.proprietor!]);
       setOpen(false);
     } finally {
       setBusy(false);
@@ -462,6 +469,19 @@ export function ProprietorsBoard({
             )}
           </div>
         </div>
+        <label>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</span>
+          <FormSelect
+            className="mt-2"
+            value={sort}
+            onChange={(event) => setSort(event.target.value as SizeSort)}
+          >
+            <option value="rank">Biggest first</option>
+            <option value="students">Most students</option>
+            <option value="fees">Highest fees</option>
+            <option value="name">A to Z</option>
+          </FormSelect>
+        </label>
       </div>
 
       <p className="mt-4 text-sm text-slate-500">
@@ -480,7 +500,7 @@ export function ProprietorsBoard({
       ) : (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-            {visible.map((row, index) => (
+            {visible.map((row) => (
               <button
                 key={row.id}
                 type="button"
@@ -494,17 +514,18 @@ export function ProprietorsBoard({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold text-slate-900">
-                      {index + 1}. {row.school_name}
+                      #{row.size_rank} {row.school_name}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">{row.proprietor_name || "No proprietor name"}</p>
                   </div>
                   <StatusBadge status={row.status} />
                 </div>
                 <p className="mt-3 text-sm text-slate-600">{row.phone || "No phone"}</p>
-                <p className="text-sm text-slate-600">
-                  {row.student_count != null ? `${row.student_count} students` : "Student count unknown"}
-                  {" · "}
-                  {softwareLine(row)}
+                <p className="text-sm font-semibold text-slate-800">
+                  {formatStudentRange(row.size_fees)} · {formatFeeRange(row.size_fees)}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {SIZE_FEE_LABELS[row.size_fees.source]} · {softwareLine(row)}
                 </p>
                 {row.install_date ? (
                   <p className="mt-1 text-sm font-semibold" style={{ color: BRAND }}>
@@ -532,7 +553,7 @@ export function ProprietorsBoard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {visible.map((row, index) => (
+                {visible.map((row) => (
                   <tr
                     key={row.id}
                     className="cursor-pointer hover:bg-slate-50/50"
@@ -543,7 +564,7 @@ export function ProprietorsBoard({
                         : undefined
                     }
                   >
-                    <td className="w-12 px-4 py-3 tabular-nums text-slate-500">{index + 1}.</td>
+                    <td className="w-12 px-4 py-3 tabular-nums text-slate-500">#{row.size_rank}</td>
                     <td className="px-4 py-3 font-medium text-slate-900">{row.school_name}</td>
                     <td className="px-4 py-3 text-slate-600">{row.proprietor_name || "—"}</td>
                     <td className="px-4 py-3">
@@ -555,8 +576,14 @@ export function ProprietorsBoard({
                         ? `${formatInstallDay(row.install_date)}${row.install_booked_by ? ` · ${row.install_booked_by}` : ""}`
                         : "—"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{row.student_count ?? "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{naira(row.average_fees)}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatStudentRange(row.size_fees)}
+                      <span className="mt-1 block text-[11px] text-slate-400">
+                        {SIZE_FEE_LABELS[row.size_fees.source]}
+                        {row.size_fees.size_label ? ` · ${row.size_fees.size_label}` : ""}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{formatFeeRange(row.size_fees)}</td>
                     <td className="px-4 py-3 text-slate-600">{softwareLine(row)}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {row.updated_by} · {when(row.updated_at)}
@@ -657,6 +684,9 @@ export function ProprietorsBoard({
                   type="number"
                 />
               </div>
+              <p className="text-xs text-slate-500">
+                Leave blank to keep the sourced size and fees. Save a number only when you confirm it.
+              </p>
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   School software

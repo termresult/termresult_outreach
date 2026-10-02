@@ -14,6 +14,8 @@ export type Attendee = {
   transcription_notes: string | null;
   contacted: boolean;
   priority: boolean;
+  student_count: number | null;
+  average_fees: number | null;
   install_date: string | null;
   install_booked_by: string | null;
   created_at: string;
@@ -30,5 +32,7 @@ export type AttendeeInput = {
   transcription_notes?: string | null;
   contacted?: boolean;
   priority?: boolean;
+  student_count?: number | null;
+  average_fees?: number | null;
   install_date?: string | null;
 };

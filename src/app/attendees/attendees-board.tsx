@@ -28,6 +28,14 @@ import {
   type CalendarBooking,
 } from "@/lib/proprietors/calendar-bookings";
 import { formatInstallDay } from "@/lib/proprietors/install-date";
+import {
+  SIZE_FEE_LABELS,
+  formatFeeRange,
+  formatStudentRange,
+  rankSchools,
+  sortRanked,
+  type SizeSort,
+} from "@/lib/schools/size-fees";
 import { InstallDateField } from "@/app/proprietors/install-date-field";
 import {
   OPERATOR_NAMES,
@@ -61,6 +69,8 @@ type FormState = {
   transcription_notes: string;
   contacted: boolean;
   priority: boolean;
+  student_count: string;
+  average_fees: string;
   install_date: string;
 };
 
@@ -79,6 +89,8 @@ function formFromRow(row: Attendee): FormState {
     transcription_notes: row.transcription_notes ?? "",
     contacted: row.contacted,
     priority: row.priority,
+    student_count: row.student_count != null ? String(row.student_count) : "",
+    average_fees: row.average_fees != null ? String(row.average_fees) : "",
     install_date: row.install_date ?? "",
   };
 }
@@ -93,6 +105,8 @@ function attendeeInput(form: FormState): AttendeeInput {
     transcription_notes: form.transcription_notes,
     contacted: form.contacted,
     priority: form.priority,
+    student_count: form.student_count ? Number(form.student_count) : null,
+    average_fees: form.average_fees ? Number(form.average_fees) : null,
     install_date: form.install_date || null,
   };
 }
@@ -113,7 +127,12 @@ export function AttendeesBoard({
   const [rows, setRows] = useState(initialRows);
   const [totals, setTotals] = useState(initialTotals);
   const [liveQuery, setLiveQuery] = useState(query);
-  const visible = useMemo(() => filterAttendees(rows, liveQuery), [rows, liveQuery]);
+  const [sort, setSort] = useState<SizeSort>("rank");
+  const visible = useMemo(() => {
+    const ranked = rankSchools(rows);
+    const filtered = filterAttendees(ranked, liveQuery);
+    return sortRanked(filtered, sort);
+  }, [rows, liveQuery, sort]);
 
   function applyFilters(next: AttendeeQuery) {
     setLiveQuery(next);
@@ -284,6 +303,19 @@ export function AttendeesBoard({
               <option value="unbooked">No install date</option>
             </FormSelect>
           </label>
+          <label>
+            <span className="sr-only">Sort by size and fees</span>
+            <FormSelect
+              name="sort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as SizeSort)}
+            >
+              <option value="rank">Biggest first</option>
+              <option value="students">Most students</option>
+              <option value="fees">Highest fees</option>
+              <option value="name">A to Z</option>
+            </FormSelect>
+          </label>
         </div>
         {liveQuery.q || liveQuery.status || liveQuery.outreach || liveQuery.flag ? (
           <button
@@ -316,7 +348,7 @@ export function AttendeesBoard({
       ) : (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-            {visible.map((row, index) => (
+            {visible.map((row) => (
               <article
                 key={row.id}
                 className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
@@ -324,7 +356,7 @@ export function AttendeesBoard({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900">
-                      {index + 1}. {row.school_name}
+                      #{row.size_rank} {row.school_name}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {row.contact_name || "Contact name not provided"}
@@ -336,6 +368,10 @@ export function AttendeesBoard({
                   <OutreachBadge contacted={row.contacted} />
                   {row.priority ? <PriorityBadge /> : null}
                 </div>
+                <p className="mt-3 text-sm font-semibold text-slate-800">
+                  {formatStudentRange(row.size_fees)} · {formatFeeRange(row.size_fees)}
+                </p>
+                <p className="text-xs text-slate-400">{SIZE_FEE_LABELS[row.size_fees.source]}</p>
                 <dl className="mt-3 space-y-1 text-sm">
                   <Detail label="Phone" value={row.phone} />
                   <Detail label="Email" value={row.email} />
@@ -366,7 +402,7 @@ export function AttendeesBoard({
             <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["#", "School", "Contact", "Phone", "Follow-up", "Attendance", "Install", ""].map(
+                  {["#", "School", "Students", "Fees", "Contact", "Phone", "Follow-up", "Attendance", "Install", ""].map(
                     (label, index) => (
                       <th
                         key={`${label}-${index}`}
@@ -380,13 +416,23 @@ export function AttendeesBoard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {visible.map((row, index) => (
+                {visible.map((row) => (
                   <tr key={row.id} className="align-top hover:bg-slate-50/50">
                     <td className="w-12 px-4 py-3 tabular-nums text-slate-500">
-                      {index + 1}.
+                      #{row.size_rank}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-900">
                       {row.school_name}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatStudentRange(row.size_fees)}
+                      <span className="mt-1 block text-[11px] text-slate-400">
+                        {SIZE_FEE_LABELS[row.size_fees.source]}
+                        {row.size_fees.size_label ? ` · ${row.size_fees.size_label}` : ""}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatFeeRange(row.size_fees)}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {row.contact_name || "Not provided"}
@@ -699,6 +745,21 @@ function EditAttendeeDialog({
             inputMode="email"
             onChange={(email) => setForm({ ...form, email })}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Number of students"
+              value={form.student_count}
+              onChange={(student_count) => setForm({ ...form, student_count })}
+            />
+            <Field
+              label="Average school fees"
+              value={form.average_fees}
+              onChange={(average_fees) => setForm({ ...form, average_fees })}
+            />
+          </div>
+          <p className="text-xs text-slate-500">
+            Leave blank to keep the sourced size and fees. Save a number only when you confirm it.
+          </p>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Attendance status

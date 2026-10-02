@@ -26,7 +26,7 @@ export default async function ProprietorsPage({
       <PageHeader
         eyebrow="Proprietors"
         title="School conversations"
-        description="Type a school when you talk to them. If someone else already did, you will see it here."
+        description="Ranked by school size and fees. Type a school when you talk to them."
       />
       <ProprietorsBoard
         initial={rows}

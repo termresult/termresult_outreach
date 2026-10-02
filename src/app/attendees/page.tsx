@@ -42,7 +42,7 @@ export default async function AttendeesPage({
       <PageHeader
         eyebrow="Event register"
         title="Attendees"
-        description="Contact every school from the event, mark who you have reached, star the priorities, and book their install day."
+        description="Ranked by school size and fees. Contact every school, star the priorities, and book their install day."
       />
 
       <AttendeesBoard
